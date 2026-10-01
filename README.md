@@ -39,3 +39,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 minSdk 31. Pair the buds in system Bluetooth settings first, then pick them from the bonded list. The first Connect scans for the separate BLE control endpoint and asks you to confirm its address. Once connected, the confirmed address is saved for that bonded audio device, so reconnecting (even after restarting the app) skips the scan. If the saved BLE address stops working, the app scans again and asks for confirmation. If multiple same-name earbuds are nearby, move away from the others and scan again; the advertised name alone cannot prove which audio device an endpoint belongs to.
+
+## License
+
+MoonMode is licensed under the [MIT License](LICENSE). Bundled fonts retain their own licenses in [`app/src/main/assets/licenses`](app/src/main/assets/licenses).
