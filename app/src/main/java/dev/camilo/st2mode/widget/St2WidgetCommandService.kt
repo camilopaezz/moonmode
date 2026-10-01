@@ -101,7 +101,9 @@ class St2WidgetCommandService : Service() {
                         it.selectedAddress != target.bondedAddress
                 }
                 if (!state.ready || state.selectedAddress != target.bondedAddress) return@withTimeoutOrNull false
-                shared.setModeAndAwait(mode)
+                if (!shared.setModeAndAwait(mode)) return@withTimeoutOrNull false
+                shared.refreshBatteryAndAwait()
+                true
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
