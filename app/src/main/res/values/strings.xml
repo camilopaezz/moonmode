@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MoonMode</string>
+    <string name="no_device">No device</string>
+    <string name="settings_coming_soon">Settings, coming soon</string>
+    <string name="retry">Retry</string>
+    <string name="cancel">Cancel</string>
+    <string name="allow_bluetooth">Allow Bluetooth</string>
+    <string name="bluetooth_access_title">Bluetooth access needed</string>
+    <string name="bluetooth_access_help">Allow Nearby devices so MoonMode can reach your earbuds. If access is blocked, enable it in Android app settings.</string>
+    <string name="pair_earbuds_title">Pair your earbuds first</string>
+    <string name="pair_earbuds_help">Pair your earbuds in Android Bluetooth settings, then return here and retry.</string>
+    <string name="earbuds_not_found_title">Earbuds out of reach</string>
+    <string name="earbuds_not_found_help">Keep your earbuds nearby and connected to your phone, then try again.</string>
+    <string name="connection_error_help">Check that Bluetooth is on and your earbuds are nearby, then try again.</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="connected">Connected</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="connecting">Connecting</string>
+    <string name="finding_earbuds">Finding earbuds</string>
+    <string name="changing_mode">Changing mode…</string>
+    <string name="connection_error">Could not connect</string>
+    <string name="endpoint_needed">Choose an endpoint</string>
+    <string name="choose_endpoint">Choose the BLE endpoint for your earbuds</string>
+    <string name="paired_devices">Paired devices</string>
+    <string name="permission_help">Tap Connect to allow Bluetooth. If access is blocked, allow Nearby devices in Android app settings.</string>
+    <string name="connection_help">Check Bluetooth and your earbuds, then tap Connect to retry.</string>
+    <string name="last_known_not_live">Last known, not live</string>
+    <string name="no_reading">No reading</string>
+    <string name="waiting_for_reading">Waiting for a reading</string>
+    <string name="connect_for_reading">Connect to read the mode</string>
+    <string name="live_mode">%1$s, live mode</string>
+    <string name="cached_mode">Last known: %1$s, not live</string>
+    <string name="live_selection">Live mode</string>
+</resources>

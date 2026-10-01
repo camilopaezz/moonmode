@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="st2_widget_surface">@android:color/system_surface_dark</color>
+    <color name="st2_widget_on_surface">@android:color/system_on_surface_dark</color>
+    <color name="st2_widget_status">@android:color/system_on_surface_variant_dark</color>
+    <color name="st2_widget_track">@android:color/system_surface_variant_dark</color>
+    <color name="st2_widget_selected">@android:color/system_primary_dark</color>
+    <color name="st2_widget_on_selected">@android:color/system_on_primary_dark</color>
+</resources>

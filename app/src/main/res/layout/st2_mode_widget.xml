@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/st2_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/st2_widget_background"
+    android:minWidth="@dimen/st2_widget_min_width"
+    android:minHeight="@dimen/st2_widget_min_height"
+    android:clickable="true"
+    android:focusable="true"
+    android:contentDescription="@string/st2_widget_open_app"
+    android:paddingStart="@dimen/st2_widget_padding_h"
+    android:paddingEnd="@dimen/st2_widget_padding_h"
+    android:paddingTop="@dimen/st2_widget_padding_v"
+    android:paddingBottom="@dimen/st2_widget_padding_v">
+
+    <!-- At 96dp: 12dp outer padding + 54dp track + 2dp gap + 28dp caption.
+         The track's 3dp inset leaves each equal-width target at least 48dp high. -->
+    <LinearLayout
+        android:id="@+id/st2_widget_buttons"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentTop="true"
+        android:layout_above="@+id/st2_widget_device_status"
+        android:minHeight="54dp"
+        android:padding="3dp"
+        android:background="@drawable/st2_widget_track"
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:id="@+id/st2_widget_mode_off"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:minHeight="@dimen/st2_widget_button_min"
+            android:background="@drawable/st2_widget_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/st2_widget_set_off"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/st2_widget_icon_off"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_mode_off"
+                android:scaleType="fitCenter"
+                android:importantForAccessibility="no"
+                android:contentDescription="@null"
+                android:tint="@color/st2_widget_on_surface" />
+            <TextView
+                android:id="@+id/st2_widget_label_off"
+                android:layout_width="match_parent"
+                android:layout_height="16dp"
+                android:importantForAccessibility="no"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="8dp"
+                android:autoSizeMaxTextSize="@dimen/st2_widget_button_text"
+                android:autoSizeStepGranularity="1dp"
+                android:text="@string/st2_widget_mode_off"
+                android:textColor="@color/st2_widget_on_surface"
+                android:textSize="@dimen/st2_widget_button_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/st2_widget_mode_anc"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:minHeight="@dimen/st2_widget_button_min"
+            android:background="@drawable/st2_widget_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/st2_widget_set_anc"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/st2_widget_icon_anc"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_mode_anc"
+                android:scaleType="fitCenter"
+                android:importantForAccessibility="no"
+                android:contentDescription="@null"
+                android:tint="@color/st2_widget_on_surface" />
+            <TextView
+                android:id="@+id/st2_widget_label_anc"
+                android:layout_width="match_parent"
+                android:layout_height="16dp"
+                android:importantForAccessibility="no"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="8dp"
+                android:autoSizeMaxTextSize="@dimen/st2_widget_button_text"
+                android:autoSizeStepGranularity="1dp"
+                android:text="@string/st2_widget_mode_anc"
+                android:textColor="@color/st2_widget_on_surface"
+                android:textSize="@dimen/st2_widget_button_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/st2_widget_mode_transparency"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:minHeight="@dimen/st2_widget_button_min"
+            android:background="@drawable/st2_widget_button"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/st2_widget_set_transparency"
+            android:gravity="center"
+            android:orientation="vertical">
+            <ImageView
+                android:id="@+id/st2_widget_icon_transparency"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_mode_transparency"
+                android:scaleType="fitCenter"
+                android:importantForAccessibility="no"
+                android:contentDescription="@null"
+                android:tint="@color/st2_widget_on_surface" />
+            <TextView
+                android:id="@+id/st2_widget_label_transparency"
+                android:layout_width="match_parent"
+                android:layout_height="16dp"
+                android:importantForAccessibility="no"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="8dp"
+                android:autoSizeMaxTextSize="@dimen/st2_widget_button_text"
+                android:autoSizeStepGranularity="1dp"
+                android:text="@string/st2_widget_mode_transparency"
+                android:textColor="@color/st2_widget_on_surface"
+                android:textSize="@dimen/st2_widget_button_text" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Paired device name and temporary command status share this caption. -->
+    <TextView
+        android:id="@id/st2_widget_device_status"
+        android:layout_width="match_parent"
+        android:layout_height="28dp"
+        android:layout_alignParentBottom="true"
+        android:layout_marginTop="2dp"
+        android:fontFamily="sans-serif"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:maxLines="2"
+        android:autoSizeTextType="uniform"
+        android:autoSizeMinTextSize="9dp"
+        android:autoSizeMaxTextSize="@dimen/st2_widget_text_size"
+        android:autoSizeStepGranularity="1dp"
+        android:text="@string/st2_widget_paired_device_preview"
+        android:textColor="@color/st2_widget_status"
+        android:textSize="@dimen/st2_widget_text_size" />
+</RelativeLayout>

@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ST2 Mode UI iteration 2</title>
+  <style>
+    :root {
+      --page: #E8E8E6;
+      --page-ink: #1A1A18;
+      --page-mute: #5E5E5A;
+      --page-line: #C8C8C4;
+      --page-fill: #F3F3F1;
+      --focus: #1A1A18;
+      --paper: #F7F8FA;
+      --ink: #191C20;
+      --line: #D5D8DE;
+      --mute: #5F6570;
+      --fail: #B3261E;
+      --recess: #E4E6EA;
+      --sans: system-ui, Roboto, "Noto Sans", sans-serif;
+      --widget-w: 360px;
+    }
+    html[data-theme="dark"] {
+      --page: #121211;
+      --page-ink: #ECECE8;
+      --page-mute: #A4A49E;
+      --page-line: #3A3A36;
+      --page-fill: #1C1C1A;
+      --focus: #ECECE8;
+      --paper: #141518;
+      --ink: #E8EAED;
+      --line: #3C4048;
+      --mute: #9AA0A8;
+      --fail: #F2B8B5;
+      --recess: #2A2D32;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font-family: var(--sans);
+      background: var(--page);
+      color: var(--page-ink);
+      line-height: 1.35;
+      min-height: 100vh;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    button:disabled { cursor: default; }
+    :focus { outline: none; }
+    :focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+    .phone :focus-visible,
+    .widget :focus-visible { outline-color: var(--ink); }
+
+    .page-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px 24px;
+      padding: 14px 24px 10px;
+      border-bottom: 1px solid var(--page-line);
+    }
+    .page-header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .lede {
+      margin: 4px 0 0;
+      max-width: 46rem;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--page-mute);
+    }
+    .lede strong { color: var(--page-ink); font-weight: 600; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      align-items: center;
+    }
+    .seg {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .seg .lbl {
+      font-size: 12px;
+      color: var(--page-mute);
+      margin-right: 4px;
+    }
+    .seg button {
+      min-height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--page-line);
+      background: var(--page-fill);
+      color: var(--page-ink);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .seg button[aria-pressed="true"] {
+      background: var(--page-ink);
+      color: var(--page);
+      border-color: var(--page-ink);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 400px) minmax(280px, 420px);
+      gap: 8px 32px;
+      padding: 14px 24px 24px;
+      align-items: start;
+      justify-content: center;
+    }
+    .col-head h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .col-head p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--page-mute);
+    }
+
+    .reviewer {
+      border: 0;
+      margin: 8px 0 10px;
+      padding: 0;
+    }
+    .reviewer legend {
+      padding: 0;
+      font-size: 11px;
+      color: var(--page-mute);
+    }
+    .reviewer .opts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px 4px;
+    }
+    .reviewer label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 48px;
+      padding: 0 8px 0 4px;
+      font-size: 13px;
+    }
+    .reviewer input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--page-ink);
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin: 0 0 12px;
+      padding: 0;
+      list-style: none;
+    }
+    .legend li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--page-mute);
+    }
+    .legend .ico {
+      width: 32px;
+      height: 32px;
+      color: var(--page-ink);
+      flex-shrink: 0;
+    }
+    .legend .ico svg { display: block; width: 32px; height: 32px; }
+    .hint {
+      margin: 0 0 10px;
+      font-size: 12px;
+      color: var(--page-mute);
+    }
+
+    .phone {
+      width: 100%;
+      max-width: 360px;
+      height: 520px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .appbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 8px 8px 16px;
+      flex-shrink: 0;
+    }
+    .app-title {
+      font-size: 20px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .app-status {
+      margin-top: 2px;
+      font-size: 13px;
+      color: var(--mute);
+    }
+    .app-status.is-fail { color: var(--fail); }
+    .conn-btn {
+      flex-shrink: 0;
+      min-height: 48px;
+      min-width: 48px;
+      padding: 0 12px;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .conn-btn:disabled { opacity: 0.4; }
+    .conn-btn:hover:not(:disabled) { background: rgba(127,127,127,.12); }
+
+    .sign {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 8px 16px;
+      min-height: 0;
+    }
+    .sign-icon {
+      width: 120px;
+      height: 120px;
+      color: var(--ink);
+    }
+    .sign-icon svg { display: block; width: 120px; height: 120px; }
+    .sign-icon.is-pending { opacity: 0.55; }
+    .sign-label {
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+    .sign-caption {
+      min-height: 18px;
+      font-size: 13px;
+      color: var(--mute);
+    }
+    .chooser {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+    }
+    .chooser button {
+      min-height: 48px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      padding: 0 4px;
+      white-space: nowrap;
+    }
+    .chooser button:hover:not(:disabled) { background: rgba(127,127,127,.1); }
+    .phone[data-conn="connected"] .chooser button[aria-checked="true"] {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .chooser button:disabled {
+      color: var(--mute);
+      opacity: 0.55;
+    }
+
+    .widgets { min-width: 0; }
+    .widget-block { margin-bottom: 14px; }
+    .widget-block h3 {
+      margin: 0 0 2px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .widget-block .why {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--page-mute);
+    }
+    .widget {
+      width: var(--widget-w);
+      max-width: 100%;
+      min-height: 88px;
+      height: 100px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+    }
+    .widget.is-pending { opacity: 0.78; }
+    .track {
+      position: relative;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      min-height: 48px;
+      background: var(--recess);
+      border-radius: 12px;
+    }
+    .thumb {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      width: calc((100% - 8px) / 3);
+      left: 4px;
+      background: var(--ink);
+      border-radius: 9px;
+      transform: translateX(0);
+      transition: transform 180ms ease, opacity 120ms ease;
+      pointer-events: none;
+    }
+    .widget[data-show="anc"] .thumb { transform: translateX(100%); }
+    .widget[data-show="transparency"] .thumb { transform: translateX(200%); }
+    .widget[data-pending] .thumb { opacity: 0.65; }
+    .track button {
+      position: relative;
+      z-index: 1;
+      min-height: 48px;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      padding: 0 4px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .track button:disabled { opacity: 0.45; }
+    .widget[data-show="off"] button[data-mode="off"],
+    .widget[data-show="anc"] button[data-mode="anc"],
+    .widget[data-show="transparency"] button[data-mode="transparency"] {
+      color: var(--paper);
+    }
+    .widget-cap {
+      flex-shrink: 0;
+      min-height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--mute);
+      padding: 2px 4px 0;
+    }
+
+    .segment-btn {
+      flex-direction: column;
+      gap: 2px;
+    }
+    .segment-btn .ico {
+      width: 28px;
+      height: 28px;
+    }
+    .segment-btn .ico svg,
+    .stops-btn .ico svg,
+    .rail-btn .ico svg { display: block; width: 100%; height: 100%; }
+    .segment-btn span {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      text-align: center;
+    }
+
+    .stops-btn .ico {
+      width: 36px;
+      height: 36px;
+    }
+
+    .rail .track {
+      background: var(--recess);
+    }
+    .rail-btn {
+      gap: 4px;
+      flex-direction: row;
+    }
+    .rail-btn .ico {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .rail-btn span {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+    }
+
+    html[data-narrow="true"] { --widget-w: 280px; }
+    html[data-narrow="true"] .rail-btn .ico { display: none; }
+    html[data-narrow="true"] .rail-btn span { font-size: 11px; }
+    html[data-narrow="true"] .segment-btn span { font-size: 10px; }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 400px);
+        justify-content: center;
+      }
+      .page-header, .layout { padding-left: 16px; padding-right: 16px; }
+      .phone { height: 560px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .thumb { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <div>
+      <h1>ST2 Mode UI iteration 2</h1>
+      <p class="lede">
+        <strong>Design mocks, not a live device session.</strong>
+        Clicks change local UI state only. Nothing uses Bluetooth or writes to earbuds.
+        The app and the three widgets share one simulated mode.
+      </p>
+    </div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Preview theme">
+        <span class="lbl">Theme</span>
+        <button type="button" data-theme-btn="light" aria-pressed="true">Light</button>
+        <button type="button" data-theme-btn="dark" aria-pressed="false">Dark</button>
+      </div>
+      <div class="seg" role="group" aria-label="Widget preview width">
+        <span class="lbl">Widget</span>
+        <button type="button" data-narrow-btn="false" aria-pressed="true">360</button>
+        <button type="button" data-narrow-btn="true" aria-pressed="false">280</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="app-col">
+      <div class="col-head">
+        <h2>Sign</h2>
+        <p>The live mode is a pictogram. Options sit in a compact row under it.</p>
+      </div>
+      <fieldset class="reviewer">
+        <legend>Reviewer</legend>
+        <div class="opts">
+          <label><input type="radio" name="rev" value="connected" checked> Connected</label>
+          <label><input type="radio" name="rev" value="disconnected"> Disconnected</label>
+          <label><input type="radio" name="rev" value="error"> Failed</label>
+        </div>
+      </fieldset>
+      <ul class="legend">
+        <li><span class="ico" data-icon="off" data-icon-size="32"></span> Off, no processing</li>
+        <li><span class="ico" data-icon="anc" data-icon-size="32"></span> ANC, blocks outside noise</li>
+        <li><span class="ico" data-icon="transparency" data-icon-size="32"></span> Transparency, lets sound in</li>
+      </ul>
+      <p class="hint">Off is noise control off, not power or a dropped connection.</p>
+      <div class="phone" data-conn="connected" data-show="anc">
+        <div class="appbar">
+          <div>
+            <div class="app-title">ST2 Mode</div>
+            <div class="app-status" aria-live="polite">Connected</div>
+          </div>
+          <button type="button" class="conn-btn">Disconnect</button>
+        </div>
+        <div class="sign">
+          <div class="sign-icon" data-sign="off" hidden data-icon="off" data-icon-size="120"></div>
+          <div class="sign-icon" data-sign="anc" data-icon="anc" data-icon-size="120"></div>
+          <div class="sign-icon" data-sign="transparency" hidden data-icon="transparency" data-icon-size="120"></div>
+          <div class="sign-label">ANC</div>
+          <div class="sign-caption"></div>
+        </div>
+        <div class="chooser" role="radiogroup" aria-label="Noise control">
+          <button type="button" role="radio" aria-checked="false" data-mode="off">Off</button>
+          <button type="button" role="radio" aria-checked="true" data-mode="anc">ANC</button>
+          <button type="button" role="radio" aria-checked="false" data-mode="transparency">Transparency</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="widgets">
+      <div class="col-head">
+        <h2>4x1 widgets</h2>
+        <p>Full-width three-stop controls. Always Last known, never a live reading.</p>
+      </div>
+
+      <div class="widget-block">
+        <h3>Segment</h3>
+        <p class="why">Each stop is an icon and a label. The block slides under the cached mode.</p>
+        <div class="widget segment" data-show="anc" aria-label="Home screen widget, last known ANC">
+          <div class="track" role="radiogroup" aria-label="Noise control, last known">
+            <div class="thumb" aria-hidden="true"></div>
+            <button type="button" class="segment-btn" role="radio" data-mode="off" aria-checked="false">
+              <span class="ico" data-icon="off" data-icon-size="28"></span><span>Off</span>
+            </button>
+            <button type="button" class="segment-btn" role="radio" data-mode="anc" aria-checked="true">
+              <span class="ico" data-icon="anc" data-icon-size="28"></span><span>ANC</span>
+            </button>
+            <button type="button" class="segment-btn" role="radio" data-mode="transparency" aria-checked="false">
+              <span class="ico" data-icon="transparency" data-icon-size="28"></span><span>Transparency</span>
+            </button>
+          </div>
+          <div class="widget-cap">Last known</div>
+        </div>
+      </div>
+
+      <div class="widget-block">
+        <h3>Stops</h3>
+        <p class="why">Icon-only stops. Mode name and Last known share one full-width caption.</p>
+        <div class="widget stops" data-show="anc" aria-label="Home screen widget, last known ANC">
+          <div class="track" role="radiogroup" aria-label="Noise control, last known">
+            <div class="thumb" aria-hidden="true"></div>
+            <button type="button" class="stops-btn" role="radio" data-mode="off" aria-checked="false" aria-label="Off">
+              <span class="ico" data-icon="off" data-icon-size="36"></span>
+            </button>
+            <button type="button" class="stops-btn" role="radio" data-mode="anc" aria-checked="true" aria-label="ANC">
+              <span class="ico" data-icon="anc" data-icon-size="36"></span>
+            </button>
+            <button type="button" class="stops-btn" role="radio" data-mode="transparency" aria-checked="false" aria-label="Transparency">
+              <span class="ico" data-icon="transparency" data-icon-size="36"></span>
+            </button>
+          </div>
+          <div class="widget-cap" data-stops-cap>Last known ANC</div>
+        </div>
+      </div>
+
+      <div class="widget-block">
+        <h3>Rail</h3>
+        <p class="why">One contiguous label rail. A sliding indicator marks the cached stop.</p>
+        <div class="widget rail" data-show="anc" aria-label="Home screen widget, last known ANC">
+          <div class="track" role="radiogroup" aria-label="Noise control, last known">
+            <div class="thumb" aria-hidden="true"></div>
+            <button type="button" class="rail-btn" role="radio" data-mode="off" aria-checked="false">
+              <span class="ico" data-icon="off" data-icon-size="18"></span><span>Off</span>
+            </button>
+            <button type="button" class="rail-btn" role="radio" data-mode="anc" aria-checked="true">
+              <span class="ico" data-icon="anc" data-icon-size="18"></span><span>ANC</span>
+            </button>
+            <button type="button" class="rail-btn" role="radio" data-mode="transparency" aria-checked="false">
+              <span class="ico" data-icon="transparency" data-icon-size="18"></span><span>Transparency</span>
+            </button>
+          </div>
+          <div class="widget-cap">Last known</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const MODES = [
+        { id: "off", label: "Off" },
+        { id: "anc", label: "ANC" },
+        { id: "transparency", label: "Transparency" }
+      ];
+      const labelOf = (id) => (MODES.find((m) => m.id === id) || MODES[1]).label;
+      const reduceMotion = () =>
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const wait = (ms) =>
+        new Promise((resolve) => setTimeout(resolve, reduceMotion() ? 0 : ms));
+
+      const MARKUP = {
+        off:
+          '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true">' +
+          '<path d="M4 21c4 0 4-6 8-6s4 6 8 6 4-6 8-6 4 6 8 6 4-6 8-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<path d="M4 27c4 0 4-6 8-6s4 6 8 6 4-6 8-6 4 6 8 6 4-6 8-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<path d="M4 33c4 0 4-6 8-6s4 6 8 6 4-6 8-6 4 6 8 6 4-6 8-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          "</svg>",
+        anc:
+          '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true">' +
+          '<path d="M9.1 21c3.2 0 3.2-6 6.4-6s3.2 6 6.4 6 3.2-6 6.4-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<path d="M9.1 27c3.2 0 3.2-6 6.4-6s3.2 6 6.4 6 3.2-6 6.4-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<path d="M9.1 33c3.2 0 3.2-6 6.4-6s3.2 6 6.4 6 3.2-6 6.4-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<rect x="32.1" y="9" width="8" height="30" rx="4" fill="currentColor"/>' +
+          "</svg>",
+        transparency:
+          '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true">' +
+          '<path d="M3 20.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<path d="M3 26.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<path d="M3 32.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<rect x="21.5" y="8" width="5" height="8" rx="1.6" fill="currentColor"/>' +
+          '<rect x="21.5" y="20" width="5" height="8" rx="1.6" fill="currentColor"/>' +
+          '<rect x="21.5" y="32" width="5" height="8" rx="1.6" fill="currentColor"/>' +
+          '<path d="M29.4 20.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<path d="M29.4 26.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          '<path d="M29.4 32.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>' +
+          "</svg>"
+      };
+
+      document.querySelectorAll("[data-icon]").forEach((el) => {
+        const id = el.getAttribute("data-icon");
+        const size = el.getAttribute("data-icon-size") || "32";
+        el.innerHTML = (MARKUP[id] || "").replace(
+          "<svg ",
+          '<svg width="' + size + '" height="' + size + '" '
+        );
+      });
+
+      function setTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        document.documentElement.style.colorScheme = theme;
+        document.querySelectorAll("[data-theme-btn]").forEach((btn) => {
+          btn.setAttribute("aria-pressed", String(btn.getAttribute("data-theme-btn") === theme));
+        });
+      }
+      function setNarrow(narrow) {
+        document.documentElement.setAttribute("data-narrow", String(narrow));
+        document.querySelectorAll("[data-narrow-btn]").forEach((btn) => {
+          btn.setAttribute("aria-pressed", String(btn.getAttribute("data-narrow-btn") === String(narrow)));
+        });
+      }
+      document.querySelectorAll("[data-theme-btn]").forEach((btn) => {
+        btn.addEventListener("click", () => setTheme(btn.getAttribute("data-theme-btn")));
+      });
+      document.querySelectorAll("[data-narrow-btn]").forEach((btn) => {
+        btn.addEventListener("click", () => setNarrow(btn.getAttribute("data-narrow-btn") === "true"));
+      });
+      setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      setNarrow(false);
+
+      const phone = document.querySelector(".phone");
+      const statusEl = document.querySelector(".app-status");
+      const connBtn = document.querySelector(".conn-btn");
+      const signLabel = document.querySelector(".sign-label");
+      const signCaption = document.querySelector(".sign-caption");
+      const appRadios = [...document.querySelectorAll(".chooser [data-mode]")];
+      const widgets = [...document.querySelectorAll(".widget")];
+      const widgetRadios = [...document.querySelectorAll(".widget [data-mode]")];
+      const reviewer = document.querySelectorAll(".reviewer input");
+      const stopsCap = document.querySelector("[data-stops-cap]");
+
+      let seq = 0;
+      const state = {
+        conn: "connected",
+        live: "anc",
+        cached: "anc",
+        pending: null,
+        failNext: false
+      };
+
+      function render() {
+        const live = state.conn === "connected";
+        phone.dataset.conn = state.conn;
+        phone.dataset.show = live ? state.live : state.cached;
+        if (state.pending) phone.dataset.pending = state.pending;
+        else delete phone.dataset.pending;
+
+        let status = "Disconnected";
+        let fail = false;
+        if (state.pending) status = "Setting " + labelOf(state.pending);
+        else if (state.conn === "connected") status = "Connected";
+        else if (state.conn === "connecting") status = "Connecting";
+        else if (state.conn === "error") {
+          status = "Could not connect";
+          fail = true;
+        }
+        statusEl.textContent = status;
+        statusEl.classList.toggle("is-fail", fail);
+
+        const canConnect = state.conn === "disconnected" || state.conn === "error";
+        connBtn.textContent = canConnect ? "Connect" : "Disconnect";
+        connBtn.disabled = state.conn === "connecting" || Boolean(state.pending);
+
+        const face = live ? state.live : state.cached;
+        document.querySelectorAll("[data-sign]").forEach((el) => {
+          el.hidden = el.getAttribute("data-sign") !== face;
+          el.classList.toggle("is-pending", Boolean(state.pending) || state.conn === "connecting");
+        });
+        signLabel.textContent = labelOf(face);
+        signCaption.textContent = live ? "" : "Last known (not live)";
+
+        appRadios.forEach((btn) => {
+          const id = btn.getAttribute("data-mode");
+          const checked = live && id === (state.pending || state.live);
+          btn.setAttribute("aria-checked", String(Boolean(checked)));
+          btn.disabled = !live || Boolean(state.pending);
+        });
+
+        const wShow = state.pending || state.cached;
+        const busy = state.conn === "connecting" || Boolean(state.pending);
+        widgets.forEach((w) => {
+          w.dataset.show = wShow;
+          if (state.pending) w.dataset.pending = state.pending;
+          else delete w.dataset.pending;
+          w.classList.toggle("is-pending", busy);
+          w.setAttribute("aria-label", "Home screen widget, last known " + labelOf(state.cached));
+        });
+        widgetRadios.forEach((btn) => {
+          const id = btn.getAttribute("data-mode");
+          btn.setAttribute("aria-checked", String(id === wShow));
+          btn.disabled = busy;
+        });
+        if (stopsCap) stopsCap.textContent = "Last known " + labelOf(state.cached);
+
+        let want = "disconnected";
+        if (state.failNext || state.conn === "error") want = "error";
+        else if (state.conn === "connected") want = "connected";
+        reviewer.forEach((input) => {
+          input.checked = input.value === want;
+        });
+      }
+
+      async function setMode(id) {
+        if (state.conn !== "connected" || state.pending) return;
+        if (id === state.live) return;
+        const token = ++seq;
+        state.pending = id;
+        render();
+        await wait(480);
+        if (token !== seq) return;
+        state.live = id;
+        state.cached = id;
+        state.pending = null;
+        render();
+      }
+
+      async function connect() {
+        if (state.conn === "connected" || state.pending) return false;
+        const token = ++seq;
+        state.conn = "connecting";
+        render();
+        await wait(420);
+        if (token !== seq) return false;
+        if (state.failNext) {
+          state.conn = "error";
+          render();
+          return false;
+        }
+        state.conn = "connected";
+        state.live = state.cached;
+        render();
+        return true;
+      }
+
+      function disconnect() {
+        seq += 1;
+        state.pending = null;
+        state.conn = "disconnected";
+        state.failNext = false;
+        render();
+      }
+
+      async function requestMode(id, fromWidget) {
+        if (state.pending || state.conn === "connecting") return;
+        if (state.conn !== "connected") {
+          if (!fromWidget) return;
+          const ok = await connect();
+          if (!ok) return;
+        }
+        await setMode(id);
+      }
+
+      connBtn.addEventListener("click", () => {
+        if (state.conn === "connected") disconnect();
+        else connect();
+      });
+      appRadios.forEach((btn) => {
+        btn.addEventListener("click", () => requestMode(btn.getAttribute("data-mode"), false));
+      });
+      widgetRadios.forEach((btn) => {
+        btn.addEventListener("click", () => requestMode(btn.getAttribute("data-mode"), true));
+      });
+
+      function bindArrows(group, radios, fromWidget) {
+        group.addEventListener("keydown", (event) => {
+          if (state.pending || state.conn === "connecting") return;
+          if (!fromWidget && state.conn !== "connected") return;
+          const ids = MODES.map((m) => m.id);
+          const current = state.pending || (state.conn === "connected" ? state.live : state.cached);
+          const i = ids.indexOf(current);
+          let next = null;
+          if (event.key === "ArrowRight" || event.key === "ArrowDown") next = ids[(i + 1) % 3];
+          if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = ids[(i + 2) % 3];
+          if (!next) return;
+          event.preventDefault();
+          requestMode(next, fromWidget).then(() => {
+            const target = radios.find((b) => b.getAttribute("data-mode") === next);
+            if (target) target.focus();
+          });
+        });
+      }
+      bindArrows(document.querySelector(".chooser"), appRadios, false);
+      document.querySelectorAll(".widget .track").forEach((group) => {
+        const radios = [...group.querySelectorAll("[data-mode]")];
+        bindArrows(group, radios, true);
+      });
+
+      reviewer.forEach((input) => {
+        input.addEventListener("change", () => {
+          if (!input.checked) return;
+          seq += 1;
+          state.pending = null;
+          if (input.value === "connected") {
+            state.failNext = false;
+            state.conn = "connected";
+            state.live = state.cached;
+          } else if (input.value === "error") {
+            state.failNext = true;
+            state.conn = "error";
+          } else {
+            state.failNext = false;
+            state.conn = "disconnected";
+          }
+          render();
+        });
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

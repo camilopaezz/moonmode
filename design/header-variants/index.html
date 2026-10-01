@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MoonMode · Header studies</title>
+<style>
+@font-face{font-family:MoonMode;src:url("../../app/src/main/res/font/adwaita_sans_regular.ttf") format("truetype");font-weight:400;font-display:swap}
+@font-face{font-family:MoonMode;src:url("../../app/src/main/res/font/adwaita_sans_medium.ttf") format("truetype");font-weight:500;font-display:swap}
+:root{--page:#e8e8e6;--page-ink:#1a1a18;--page-mute:#62625d;--page-line:#c8c8c4;--page-fill:#f3f3f1;--paper:#f7f8fa;--ink:#191c20;--line:#d5d8de;--mute:#5f6570;--fail:#b3261e;--recess:#e4e6ea;--phone-width:360px;--font-scale:1}
+html[data-theme=dark]{--page:#121211;--page-ink:#ecece8;--page-mute:#a4a49e;--page-line:#3a3a36;--page-fill:#1c1c1a;--paper:#141518;--ink:#e8eaed;--line:#3c4048;--mute:#9aa0a8;--fail:#f2b8b5;--recess:#2a2d32;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--page-ink);font-family:MoonMode,system-ui,Roboto,sans-serif;line-height:1.4}button,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default}button:focus-visible,select:focus-visible{outline:2px solid currentColor;outline-offset:3px}h1,h2,p{margin:0}header.review{padding:26px 32px 20px;border-bottom:1px solid var(--page-line)}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--page-mute);margin-bottom:7px}h1{font-size:24px;letter-spacing:-.04em;font-weight:600}.lede{font-size:13px;color:var(--page-mute);margin-top:5px;max-width:650px}.toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:16px 24px;margin-top:20px}.control{display:flex;gap:7px;align-items:center;font-size:12px;color:var(--page-mute)}select,.theme-toggle{border:1px solid var(--page-line);background:var(--page-fill);color:var(--page-ink);min-height:40px;border-radius:7px;padding:0 10px;font-size:13px}.theme-toggle{display:inline-flex;gap:7px;align-items:center}.theme-toggle svg{width:16px;height:16px}.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,var(--phone-width)));justify-content:center;gap:30px;padding:30px 24px 42px}.study{min-width:0}.study[hidden]{display:none}.study-head{display:flex;align-items:center;gap:9px;margin-bottom:6px}.letter{font-size:11px;border:1px solid var(--page-line);border-radius:50%;width:24px;height:24px;display:grid;place-items:center;font-weight:600}h2{font-size:16px;font-weight:600;letter-spacing:-.02em}.study-description{font-size:12px;color:var(--page-mute);min-height:38px;margin-bottom:16px}.phone{width:100%;height:630px;border:1px solid var(--line);border-radius:24px;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 20px #00000008}.inset-top{height:24px;flex:none}.app-header{flex:none}.brand{font-size:calc(20px * var(--font-scale));font-weight:500;letter-spacing:-.025em;line-height:1.25}.device-name{font-size:calc(14px * var(--font-scale));font-weight:500;overflow-wrap:anywhere}.status{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:calc(12px * var(--font-scale));min-width:0}.status-mark{width:6px;height:6px;background:var(--ink);border-radius:50%;flex:none}.phone[data-state=disconnected] .status-mark{border:1px solid var(--mute);background:transparent}.phone[data-state=connecting] .status-mark{width:10px;height:10px;background:transparent;border:1.5px solid var(--line);border-top-color:var(--ink);animation:spin 1s linear infinite}.phone[data-state=error] .status{color:var(--fail)}.phone[data-state=error] .status-mark{background:var(--fail)}.connection-action{min-height:48px;padding:0 13px;border:0;border-radius:24px;background:transparent;color:var(--ink);font-size:calc(13px * var(--font-scale));font-weight:500;flex:none}.connection-action:hover:not(:disabled){background:var(--recess)}.connection-action:disabled{color:var(--mute)}.phone[data-state=disconnected] .connection-action,.phone[data-state=error] .connection-action{background:var(--ink);color:var(--paper)}.phone[data-state=disconnected] .connection-action:hover,.phone[data-state=error] .connection-action:hover{opacity:.85}.failure{display:none;font-size:calc(12px * var(--font-scale));line-height:1.5;color:var(--mute)}.phone[data-state=error] .failure{display:block}.a .app-header{padding:0 12px 0 24px}.a .top-row{display:flex;justify-content:space-between;align-items:center;gap:8px}.a .device-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding-top:1px;padding-bottom:14px;border-bottom:1px solid var(--line)}.a .device-name{font-size:calc(12px * var(--font-scale));color:var(--mute);font-weight:400}.a .separator{color:var(--mute);font-size:11px}.a .failure{padding-top:10px;padding-right:12px}.b .app-header{padding:9px 20px 0}.b .brand{padding-left:4px;margin-bottom:20px}.connection-card{background:var(--recess);border-radius:20px;padding:14px 14px 10px}.card-heading{display:flex;align-items:center;gap:10px}.earbud-icon{width:30px;height:30px;flex:none;display:grid;place-items:center}.earbud-icon svg{width:27px;height:27px}.b .device-name{font-size:calc(16px * var(--font-scale));letter-spacing:-.025em}.b .card-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-left:40px;margin-top:5px}.b .connection-action{padding:0 12px;margin-right:-3px}.b .failure{padding:8px 0 4px 40px}.c .app-header{padding:10px 24px 0}.c .brand{font-size:calc(13px * var(--font-scale));color:var(--mute);letter-spacing:0;margin-bottom:22px}.c .device-name{font-size:calc(30px * var(--font-scale));line-height:1.1;letter-spacing:-.055em;font-weight:500}.c .status{margin-top:9px}.c .connection-action{width:100%;margin-top:18px;border:1px solid var(--line)}.c .failure{padding-top:10px}.sign{flex:1;min-height:175px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 24px 12px;gap:10px}.mode-icon{width:120px;height:120px}.mode-icon svg{display:block;width:100%;height:100%}.mode-label{font-size:calc(15px * var(--font-scale));font-weight:500;letter-spacing:-.02em}.mode-caption{font-size:calc(12px * var(--font-scale));color:var(--mute);height:18px}.phone:not([data-state=connected]) .mode-icon{opacity:.45}.chooser{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;border-top:1px solid var(--line);padding:12px}.chooser button{min-height:48px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:transparent;font-size:calc(12px * var(--font-scale));font-weight:500;padding:0 4px;overflow-wrap:anywhere}.chooser button[aria-checked=true]{background:var(--ink);border-color:var(--ink);color:var(--paper)}.chooser button:disabled{background:transparent;border-color:var(--line);color:var(--mute);opacity:.55}.inset-bottom{height:20px;display:flex;justify-content:center;align-items:center;flex:none}.home-indicator{width:94px;height:3px;border-radius:3px;background:var(--ink)}.tradeoff{font-size:12px;color:var(--page-mute);margin-top:16px;line-height:1.5}.tradeoff strong{font-weight:600;color:var(--page-ink)}.selection-note{padding:0 24px 28px;text-align:center;font-size:12px;color:var(--page-mute)}.gallery[data-view]:not([data-view=all]){grid-template-columns:minmax(0,var(--phone-width))}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:1100px){.gallery{gap:24px;grid-template-columns:repeat(2,minmax(0,var(--phone-width)))}}@media(max-width:740px){header.review{padding:22px 18px 18px}.gallery{grid-template-columns:minmax(0,var(--phone-width));padding:24px 18px;gap:36px}.toolbar{gap:12px 16px}.study-description{min-height:0}.phone{height:600px}}@media(prefers-reduced-motion:reduce){.phone[data-state=connecting] .status-mark{animation:none}}
+.b .card-bottom{flex-wrap:wrap}
+.sign{min-height:160px}
+/* Match the production chooser's icon/label rail and 96 px targets. */
+select,.theme-toggle{min-height:48px}
+.chooser{gap:0;border-top:0;padding:9px;margin:12px 16px;background:var(--recess);border-radius:16px}
+.chooser button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:96px;border:0;border-radius:9px;font-size:calc(12px * var(--font-scale));background:var(--recess)}
+.chooser-icon{display:block;width:36px;height:36px;flex:none}.chooser-icon svg{width:100%;height:100%}
+.chooser button:disabled{background:var(--recess)}
+</style>
+</head>
+<body>
+<header class="review">
+  <div class="eyebrow">MoonMode / Design study</div>
+  <h1>Three ways to organize the top</h1>
+  <p class="lede">Compare app identity, the selected earbuds, and the connection action. The mode pictogram and bottom controls stay the same.</p>
+  <div class="toolbar">
+    <label class="control">View <select id="view"><option value="all">All variants</option><option value="a">A · Compact</option><option value="b">B · Connection card</option><option value="c" selected>C · Device first</option></select></label>
+    <label class="control">State <select id="state"><option value="connected">Connected</option><option value="disconnected">Disconnected</option><option value="connecting">Connecting</option><option value="error">Connection error</option></select></label>
+    <label class="control">Width <select id="width"><option value="360">360 px</option><option value="320">320 px</option><option value="412">412 px</option></select></label>
+    <label class="control">Text <select id="text-size"><option value="1">Default</option><option value="1.3">130%</option></select></label>
+    <button class="theme-toggle" id="theme" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4a8.5 8.5 0 1 0 11.5 11.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span>Dark theme</span></button>
+  </div>
+</header>
+<main class="gallery" data-view="c">
+  <section class="study" data-variant="a" hidden>
+    <div class="study-head"><span class="letter">A</span><h2>Compact</h2></div>
+    <p class="study-description">One quiet header. App name above the device and connection state.</p>
+    <div class="phone a" data-state="connected">
+      <div class="inset-top"></div>
+      <div class="app-header">
+        <div class="top-row"><div class="brand">MoonMode</div><button class="connection-action" type="button">Disconnect</button></div>
+        <div class="device-row"><span class="device-name">ST2</span><span class="separator" aria-hidden="true">·</span><div class="status" aria-live="polite"><span class="status-mark" aria-hidden="true"></span><span class="status-text">Connected</span></div></div>
+        <p class="failure">Check Bluetooth and your earbuds, then retry.</p>
+      </div>
+    </div>
+    <p class="tradeoff"><strong>My pick.</strong> Keeps the mode in charge. The device and status read together without adding another panel.</p>
+  </section>
+  <section class="study" data-variant="b" hidden>
+    <div class="study-head"><span class="letter">B</span><h2>Connection card</h2></div>
+    <p class="study-description">A separate device card contains status, recovery, and the connection action.</p>
+    <div class="phone b" data-state="connected">
+      <div class="inset-top"></div>
+      <div class="app-header">
+        <div class="brand">MoonMode</div>
+        <div class="connection-card">
+          <div class="card-heading"><span class="earbud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M8 4a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3v6a1 1 0 0 0 2 0V7a3 3 0 0 0-2-3Zm8 0a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3v6a1 1 0 0 1-2 0V7a3 3 0 0 1 2-3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span><div class="device-name">ST2</div></div>
+          <div class="card-bottom"><div class="status" aria-live="polite"><span class="status-mark" aria-hidden="true"></span><span class="status-text">Connected</span></div><button class="connection-action" type="button">Disconnect</button></div>
+          <p class="failure">Check Bluetooth and your earbuds, then retry.</p>
+        </div>
+      </div>
+    </div>
+    <p class="tradeoff"><strong>Clearest grouping.</strong> Useful if device selection needs a home later. The extra container takes attention from the mode.</p>
+  </section>
+  <section class="study" data-variant="c">
+    <div class="study-head"><span class="letter">C</span><h2>Device first</h2></div>
+    <p class="study-description">The earbuds lead. A full-width action gives connection the largest target.</p>
+    <div class="phone c" data-state="connected">
+      <div class="inset-top"></div>
+      <div class="app-header">
+        <div class="device-name">ST2</div>
+        <div class="status" aria-live="polite"><span class="status-mark" aria-hidden="true"></span><span class="status-text">Connected</span></div>
+        <button class="connection-action" type="button">Disconnect</button>
+        <p class="failure">Check Bluetooth and your earbuds, then retry.</p>
+      </div>
+    </div>
+    <p class="tradeoff"><strong>Easiest to connect.</strong> Better for frequent reconnecting. A large Disconnect button feels heavy once the earbuds are ready.</p>
+  </section>
+</main>
+<p class="selection-note">Interactive mocks. Connect simulates a local session. No Bluetooth calls or earbud writes.</p>
+<script>
+(() => {
+  const icons = {
+    off: '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M4 21c4 0 4-6 8-6s4 6 8 6 4-6 8-6 4 6 8 6 4-6 8-6M4 27c4 0 4-6 8-6s4 6 8 6 4-6 8-6 4 6 8 6 4-6 8-6M4 33c4 0 4-6 8-6s4 6 8 6 4-6 8-6 4 6 8 6 4-6 8-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+    anc: '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M9.1 21c3.2 0 3.2-6 6.4-6s3.2 6 6.4 6 3.2-6 6.4-6M9.1 27c3.2 0 3.2-6 6.4-6s3.2 6 6.4 6 3.2-6 6.4-6M9.1 33c3.2 0 3.2-6 6.4-6s3.2 6 6.4 6 3.2-6 6.4-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><rect x="32.1" y="9" width="8" height="30" rx="4" fill="currentColor"/></svg>',
+    transparency: '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M3 20.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5M3 26.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5M3 32.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5M29.4 20.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5M29.4 26.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5M29.4 32.5c2.6 0 2.6-5 5.2-5s2.6 5 5.2 5 2.6-5 5.2-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><rect x="21.5" y="8" width="5" height="8" rx="1.6" fill="currentColor"/><rect x="21.5" y="20" width="5" height="8" rx="1.6" fill="currentColor"/><rect x="21.5" y="32" width="5" height="8" rx="1.6" fill="currentColor"/></svg>'
+  };
+  const labels = {off:'Off',anc:'ANC',transparency:'Transparency'};
+  const phones = [...document.querySelectorAll('.phone')];
+  let state = 'connected', mode = 'anc', timer;
+  phones.forEach(phone => phone.insertAdjacentHTML('beforeend', '<div class="sign"><div class="mode-icon"></div><div class="mode-label">ANC</div><div class="mode-caption"></div></div><div class="chooser" role="radiogroup" aria-label="Noise control"><button type="button" role="radio" aria-checked="false" data-mode="off">Off</button><button type="button" role="radio" aria-checked="true" data-mode="anc">ANC</button><button type="button" role="radio" aria-checked="false" data-mode="transparency">Transparency</button></div><div class="inset-bottom" aria-hidden="true"><span class="home-indicator"></span></div>'));
+  function render(){
+    document.getElementById('state').value = state;
+    phones.forEach(phone => {
+      phone.dataset.state = state;
+      phone.querySelector('.status-text').textContent = {connected:'Connected',disconnected:'Disconnected',connecting:'Connecting',error:'Could not connect'}[state];
+      const action = phone.querySelector('.connection-action');
+      action.textContent = {connected:'Disconnect',disconnected:'Connect',connecting:'Cancel',error:'Retry'}[state];
+      action.disabled = false;
+      phone.querySelector('.mode-icon').innerHTML = icons[mode];
+      phone.querySelector('.mode-label').textContent = labels[mode];
+      phone.querySelector('.mode-caption').textContent = state === 'connected' ? '' : state === 'connecting' ? 'Waiting for a reading' : 'Last known, not live';
+      phone.querySelectorAll('[data-mode]').forEach(button => {button.disabled = state !== 'connected';button.setAttribute('aria-checked', String(state === 'connected' && button.dataset.mode === mode));});
+    });
+  }
+  document.getElementById('state').addEventListener('change',event=>{clearTimeout(timer);state=event.target.value;render();});
+  document.getElementById('view').addEventListener('change',event=>{const view=event.target.value;document.querySelector('.gallery').dataset.view=view;document.querySelectorAll('.study').forEach(study=>study.hidden=view!=='all'&&study.dataset.variant!==view);});
+  document.getElementById('width').addEventListener('change',event=>document.documentElement.style.setProperty('--phone-width',event.target.value+'px'));
+  document.getElementById('text-size').addEventListener('change',event=>document.documentElement.style.setProperty('--font-scale',event.target.value));
+  document.getElementById('theme').addEventListener('click',event=>{const button=event.currentTarget;const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';button.setAttribute('aria-pressed',String(dark));button.querySelector('span').textContent=dark?'Light theme':'Dark theme';});
+  phones.forEach(phone=>{
+    phone.querySelector('.connection-action').addEventListener('click',()=>{clearTimeout(timer);if(state==='connected'||state==='connecting'){state='disconnected';render();return;}state='connecting';render();timer=setTimeout(()=>{state='connected';render();},window.matchMedia('(prefers-reduced-motion: reduce)').matches?0:1000);});
+    phone.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{mode=button.dataset.mode;render();}));
+    const buttons=[...phone.querySelectorAll('[data-mode]')];
+    buttons.forEach(button => button.insertAdjacentHTML('afterbegin', '<span class="chooser-icon" aria-hidden="true">'+icons[button.dataset.mode]+'</span>'));
+    phone.querySelector('.chooser').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)||state!=='connected')return;event.preventDefault();let index=buttons.findIndex(button=>button===document.activeElement);if(index<0)return;index=event.key==='Home'?0:event.key==='End'?2:(index+(event.key==='ArrowRight'?1:2))%3;mode=buttons[index].dataset.mode;render();buttons[index].focus();});
+  });
+  render();
+})();
+</script>
+</body>
+</html>

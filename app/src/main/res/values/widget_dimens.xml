@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="st2_widget_min_width">250dp</dimen>
+    <dimen name="st2_widget_min_height">96dp</dimen>
+    <dimen name="st2_widget_padding_h">6dp</dimen>
+    <dimen name="st2_widget_padding_v">6dp</dimen>
+    <dimen name="st2_widget_text_size">12sp</dimen>
+    <dimen name="st2_widget_button_text">11sp</dimen>
+    <dimen name="st2_widget_button_min">48dp</dimen>
+    <dimen name="st2_widget_corner">16dp</dimen>
+    <dimen name="st2_widget_button_corner">9dp</dimen>
+</resources>

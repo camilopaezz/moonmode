@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="st2_widget_description">Set Off, ANC, or Transparency on the selected earbuds</string>
+    <string name="st2_widget_paired_device">Paired: %1$s</string>
+    <string name="st2_widget_no_paired_device">Select earbuds in MoonMode</string>
+    <string name="st2_widget_paired_device_preview">Paired: SPACE TRAVEL 2</string>
+    <string name="st2_widget_status_caption">%1$s\n%2$s</string>
+    <string name="st2_widget_set_off">Set Off</string>
+    <string name="st2_widget_set_anc">Set ANC, active noise cancellation</string>
+    <string name="st2_widget_set_transparency">Set Transparency</string>
+    <string name="st2_widget_cached_stop">%1$s. Last known mode, not live.</string>
+    <string name="st2_widget_device_description">%1$s. The mode buttons show the last confirmed setting. Open MoonMode.</string>
+    <string name="st2_widget_device_description_status">%1$s. %2$s. The mode buttons show the last confirmed setting. Open MoonMode.</string>
+    <string name="st2_widget_mode_off">Off</string>
+    <string name="st2_widget_mode_anc">ANC</string>
+    <string name="st2_widget_mode_transparency">Transparency</string>
+    <string name="st2_widget_open_app">Open MoonMode</string>
+</resources>
