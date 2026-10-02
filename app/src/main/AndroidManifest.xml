@@ -49,6 +49,11 @@
                 <action android:name="android.bluetooth.device.action.BOND_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+        <receiver android:name=".widget.St2WidgetScheduleReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <service
             android:name=".widget.St2WidgetCommandService"
             android:exported="false"

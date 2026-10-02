@@ -257,10 +257,42 @@ class St2GattClient(private val context: Context) {
         if (poll.enabled && ready) worker.postDelayed(pollRunnable, POLL_INTERVAL_MS)
     }
 
+    private var modeRefresh: CompletableDeferred<Boolean>? = null
+
+    private fun finishModeRefresh(success: Boolean) {
+        modeRefresh?.complete(success)
+        modeRefresh = null
+    }
+
+    /** One read on an idle shared connection; never changes foreground polling ownership. */
+    suspend fun refreshModeAndAwait(): Boolean {
+        val completion = CompletableDeferred<Boolean>()
+        val posted = worker.post {
+            if (completion.isCancelled) return@post
+            if (!ready || poll.enabled || writes.hasSet() || modeRefresh != null) {
+                completion.complete(false)
+                return@post
+            }
+            modeRefresh = completion
+            if (!poll.awaitingGet) {
+                poll.onGetEnqueued()
+                enqueue(GattOp.WriteCommand(Gaia.getCurrentMode(), sending = false))
+            }
+        }
+        if (!posted) completion.complete(false)
+        return try {
+            completion.await()
+        } finally {
+            completion.cancel()
+            worker.post { if (modeRefresh === completion) modeRefresh = null }
+        }
+    }
+
     private var getTimeoutEpoch = 0
     private val getTimeoutRunnable = Runnable {
         if (epoch != getTimeoutEpoch) return@Runnable
         poll.onGetSettled()
+        finishModeRefresh(false)
     }
 
     fun hasPermissions(): Boolean {
@@ -372,8 +404,9 @@ class St2GattClient(private val context: Context) {
             } else {
                 val endpoint = runCatching { adapter.getRemoteDevice(cached) }.getOrNull()
                 if (endpoint == null) {
-                    confirmedEndpoints.edit().remove(bondedAddress).apply()
-                    if (allowScan) {
+                    if (recoverCachedEndpoint(bondedAddress, allowScan) {
+                        confirmedEndpoints.edit().remove(it).apply()
+                    }) {
                         hop { _state.update { it.copy(status = "scanning") } }
                         startScan(device.name, bondedAddress)
                     } else {
@@ -420,6 +453,34 @@ class St2GattClient(private val context: Context) {
                         endpoints = emptyList(),
                     )
                 }
+            }
+        }
+    }
+
+    /** Recheck ownership when cleanup executes, and never close a later connection attempt. */
+    fun disconnectAfterRefresh(runIfIdle: (() -> Unit) -> Unit) {
+        val refreshAttempt = attempt
+        worker.post {
+            if (attempt != refreshAttempt) return@post
+            runIfIdle {
+                cancelAttempt()
+                // Publish under the same ownership lock before a new command can acquire this client.
+                _state.update { it.copy(status = "disconnected", errorMessage = null,
+                    currentMode = null, ready = false, endpoints = emptyList()) }
+            }
+        }
+    }
+
+    /** Reset only this device's control endpoint, after closing its active session. */
+    fun resetSelectedEndpoint() {
+        val address = _state.value.selectedAddress ?: return
+        worker.post {
+            if (_state.value.selectedAddress != address) return@post
+            cancelAttempt()
+            confirmedEndpoints.edit().remove(address).apply()
+            hop {
+                _state.update { it.copy(status = "disconnected", errorMessage = null,
+                    currentMode = null, ready = false, endpoints = emptyList()) }
             }
         }
     }
@@ -586,9 +647,10 @@ class St2GattClient(private val context: Context) {
         if (!connectingCached) return false
         val bondedAddress = activeBondedAddress ?: return false
         connectingCached = false
-        confirmedEndpoints.edit().remove(bondedAddress).apply()
         pendingConnect = null
-        if (!allowScanFallback) return false
+        if (!recoverCachedEndpoint(bondedAddress, allowScanFallback) {
+            confirmedEndpoints.edit().remove(it).apply()
+        }) return false
         if (gatt != null && !closing) beginDisconnect()
         val name = _state.value.bonded.firstOrNull { it.address == bondedAddress }?.name
         startScan(name, bondedAddress)
@@ -629,6 +691,7 @@ class St2GattClient(private val context: Context) {
         worker.removeCallbacks(pollRunnable)
         worker.removeCallbacks(getTimeoutRunnable)
         poll.resetOutstanding()
+        finishModeRefresh(false)
     }
 
     @SuppressLint("MissingPermission")
@@ -747,6 +810,7 @@ class St2GattClient(private val context: Context) {
             writes.finish(success = false)
             if (op is GattOp.WriteCommand && op.isGet) {
                 poll.onGetSettled()
+                finishModeRefresh(false)
                 onOpFinished()
             } else if (!scanAfterCachedFailure()) {
                 setError("connect failed")
@@ -802,8 +866,12 @@ class St2GattClient(private val context: Context) {
         val mode = decodeModeReport(value) ?: return
         val accept = poll.acceptGetReport(mode)
         worker.removeCallbacks(getTimeoutRunnable)
-        if (!accept) return
+        if (!accept) {
+            finishModeRefresh(false)
+            return
+        }
         selectionStore.saveLastKnownMode(mode)
+        finishModeRefresh(true)
         hopSession {
             _state.update {
                 it.copy(
@@ -961,6 +1029,7 @@ class St2GattClient(private val context: Context) {
                     if (!success) {
                         worker.removeCallbacks(getTimeoutRunnable)
                         poll.onGetSettled()
+                        finishModeRefresh(false)
                     } else if (poll.shouldArmGetTimeout()) {
                         scheduleGetTimeout()
                     }

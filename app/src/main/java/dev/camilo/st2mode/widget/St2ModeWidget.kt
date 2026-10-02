@@ -59,7 +59,14 @@ class St2ModeWidget : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         appWidgetManager.updateAppWidget(appWidgetIds, buildRemoteViews(context, transientStatus))
+        St2WidgetRefresh.sync(context)
     }
+
+    override fun onEnabled(context: Context) { St2WidgetRefresh.sync(context) }
+
+    override fun onDisabled(context: Context) { St2WidgetRefresh.sync(context) }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) { St2WidgetRefresh.sync(context) }
 
     companion object {
         const val ACTION_SET_MODE = "dev.camilo.st2mode.widget.SET_MODE"
@@ -73,8 +80,8 @@ class St2ModeWidget : AppWidgetProvider() {
          * only in this process; pass null to clear it. Last-known mode is always
          * read from [St2SelectionStore], not from [status].
          */
-        fun updateAll(context: Context, status: String? = null) {
-            transientStatus = status
+        fun updateAll(context: Context, status: String? = null, preserveStatus: Boolean = false) {
+            if (!preserveStatus) transientStatus = status
             val app = context.applicationContext
             val manager = AppWidgetManager.getInstance(app)
             val ids = manager.getAppWidgetIds(ComponentName(app, St2ModeWidget::class.java))

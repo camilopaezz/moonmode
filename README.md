@@ -14,9 +14,36 @@ Requires **JDK 17** and the Android SDK with platform 36. Set `JAVA_HOME` to you
 
 After pairing the earbuds, connect in the app once and confirm the BLE endpoint. Add **MoonMode** from your launcher's widget picker. The widget has Off, ANC, and Transparency buttons and uses the device selected in the app.
 
-A tap connects to the saved endpoint, sends the mode command, then stops the short-lived Bluetooth foreground service. It doesn't poll in the background. Rapid taps keep the latest pending mode while the current command finishes. Each command attempt times out after 30 seconds.
+A tap connects to the saved endpoint, sends the mode command, then stops the short-lived Bluetooth foreground service. Rapid taps keep the latest pending mode while the current command finishes. Each command attempt times out after 30 seconds.
 
 The widget footer shows the selected paired device. The highlighted mode is the last confirmed setting, not a live reading. Tap the title to open the app. If Bluetooth permissions or setup are missing, the mode buttons open the app instead. A failed command leaves a message asking you to open the app; endpoint discovery and confirmation stay in the app.
+
+## Settings
+
+Use the gear button to switch paired earbuds, reset the selected earbuds’ saved BLE
+endpoint, and configure connection, widget refresh, and appearance. Reset disconnects
+the control session and repeats endpoint discovery on the next Connect. It does not
+remove Android Bluetooth pairing.
+
+Connect when opening the app is off by default. When enabled, MoonMode tries once
+per shared client session after Bluetooth access and a selected device are available.
+Activity recreation tries again if the previous client was destroyed. A failed
+attempt leaves the normal Retry button available.
+
+Background widget refresh is on by default and runs only while a widget exists.
+WorkManager schedules it about every 15 minutes; Android may delay it during Doze
+or Battery Saver. Refresh pauses when the phone battery is low, skips earbuds that
+are not connected for audio, and never scans or sends mode changes. A refresh opens
+a control connection for at most 12 seconds, reads the mode, and releases it. Resumed
+activities and widget commands take priority. A paused activity shares its idle client
+with background refresh. Background connection failures preserve the saved endpoint. Turning refresh off cancels the schedule;
+app usage and widget commands still update the cached mode. This version has no battery
+readings.
+
+Appearance supports System, Light, and Dark, with either Android wallpaper colors
+or MoonMode’s purple palette. These preferences apply to the app; the widget follows
+Android’s theme. Settings also provides permission status, Android settings shortcuts,
+widget setup instructions, the app version, and bundled licenses.
 
 ## Tests
 
