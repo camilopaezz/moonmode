@@ -82,13 +82,13 @@ import dev.camilo.st2mode.ble.AncMode
 import dev.camilo.st2mode.ble.ClientState
 import dev.camilo.st2mode.ble.St2GattClient
 import dev.camilo.st2mode.ui.SettingsScreen
-import dev.camilo.st2mode.widget.St2WidgetRefresh
 import dev.camilo.st2mode.ui.ModePresentation
 import dev.camilo.st2mode.ui.modeIcon
 import dev.camilo.st2mode.ui.modePresentation
 import dev.camilo.st2mode.ui.theme.St2ModeTheme
 import dev.camilo.st2mode.ui.theme.MoonModeBrandStyle
 import dev.camilo.st2mode.widget.St2ModeWidget
+import dev.camilo.st2mode.widget.St2WidgetRefresh
 
 class MainActivity : ComponentActivity() {
     private lateinit var client: St2GattClient
@@ -112,9 +112,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        St2WidgetRefresh.sync(this)
         client = St2Session.acquire(this)
         bluetoothAllowed = client.hasPermissions()
-        St2WidgetRefresh.sync(this)
         sessionHeld = true
         enableEdgeToEdge()
         if (client.hasPermissions()) {

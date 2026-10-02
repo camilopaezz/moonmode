@@ -22,6 +22,7 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 import dev.camilo.st2mode.St2SelectionStore
 import dev.camilo.st2mode.resolveBondedSelection
+import dev.camilo.st2mode.widget.St2ModeWidget
 import java.util.ArrayDeque
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
@@ -49,6 +50,8 @@ internal fun endpointChoices(selected: String?, seen: List<BleEndpoint>): List<B
 internal fun cachedEndpoint(bondedAddress: String?, read: (String) -> String?): String? =
     bondedAddress?.let(read)
 
+internal enum class CommandKind { MODE_GET, MODE_SET, BATTERY_GET }
+
 internal sealed class GattOp {
     data class WriteCccd(val charUuid: UUID) : GattOp()
     data class WriteCommand(
@@ -56,9 +59,10 @@ internal sealed class GattOp {
         val sending: Boolean,
         val mode: AncMode? = null,
         val completion: CompletableDeferred<Boolean>? = null,
+        val kind: CommandKind = if (mode != null) CommandKind.MODE_SET else CommandKind.MODE_GET,
     ) : GattOp() {
         val isSet: Boolean get() = mode != null
-        val isGet: Boolean get() = mode == null && !sending
+        val isGet: Boolean get() = kind == CommandKind.MODE_GET
     }
 }
 
@@ -251,48 +255,79 @@ class St2GattClient(private val context: Context) {
     private val writes = ModeWrites()
     private val poll = ModePoll()
     private var writeGapPending = false
+    private val modeReadWaiters = mutableListOf<CompletableDeferred<Boolean>>()
+
+    private fun finishModeReads(success: Boolean) {
+        modeReadWaiters.forEach { it.complete(success) }
+        modeReadWaiters.clear()
+    }
+
+    /** One explicit GET without enabling the activity's continuous polling loop. */
+    suspend fun refreshModeAndAwait(): Boolean {
+        val completion = CompletableDeferred<Boolean>()
+        if (!worker.post {
+            if (!ready || writes.hasSet() || completion.isCancelled) {
+                completion.complete(false)
+                return@post
+            }
+            modeReadWaiters.add(completion)
+            if (!poll.awaitingGet) {
+                poll.onGetEnqueued()
+                enqueue(GattOp.WriteCommand(Gaia.getCurrentMode(), sending = false))
+            }
+            worker.postDelayed({
+                modeReadWaiters.remove(completion)
+                completion.complete(false)
+            }, GET_RESPONSE_TIMEOUT_MS + 1_000L)
+        }) return false
+        return try {
+            completion.await()
+        } finally {
+            completion.cancel()
+            worker.post { modeReadWaiters.remove(completion) }
+        }
+    }
+    private var batteryRequest: CompletableDeferred<Boolean>? = null
+    private val batteryTimeoutRunnable = Runnable { finishBatteryRequest(false) }
+
+    private fun finishBatteryRequest(success: Boolean) {
+        worker.removeCallbacks(batteryTimeoutRunnable)
+        batteryRequest?.complete(success)
+        batteryRequest = null
+    }
+
+    private fun requestBattery(): CompletableDeferred<Boolean> {
+        batteryRequest?.let { return it }
+        val result = CompletableDeferred<Boolean>()
+        if (!ready) {
+            result.complete(false)
+            return result
+        }
+        batteryRequest = result
+        enqueue(GattOp.WriteCommand(
+            Gaia.getBatteryLevels(), sending = false, kind = CommandKind.BATTERY_GET,
+        ))
+        // Bound queueing plus the response wait; ANC commands keep their own timeout.
+        worker.postDelayed(batteryTimeoutRunnable, BATTERY_RESPONSE_TIMEOUT_MS)
+        return result
+    }
+
+    suspend fun refreshBatteryAndAwait(): Boolean {
+        val request = CompletableDeferred<CompletableDeferred<Boolean>>()
+        if (!worker.post { request.complete(requestBattery()) }) return false
+        return request.await().await()
+    }
 
     private val pollRunnable: Runnable = Runnable {
         maybeEnqueuePollGet()
         if (poll.enabled && ready) worker.postDelayed(pollRunnable, POLL_INTERVAL_MS)
     }
 
-    private var modeRefresh: CompletableDeferred<Boolean>? = null
-
-    private fun finishModeRefresh(success: Boolean) {
-        modeRefresh?.complete(success)
-        modeRefresh = null
-    }
-
-    /** One read on an idle shared connection; never changes foreground polling ownership. */
-    suspend fun refreshModeAndAwait(): Boolean {
-        val completion = CompletableDeferred<Boolean>()
-        val posted = worker.post {
-            if (completion.isCancelled) return@post
-            if (!ready || poll.enabled || writes.hasSet() || modeRefresh != null) {
-                completion.complete(false)
-                return@post
-            }
-            modeRefresh = completion
-            if (!poll.awaitingGet) {
-                poll.onGetEnqueued()
-                enqueue(GattOp.WriteCommand(Gaia.getCurrentMode(), sending = false))
-            }
-        }
-        if (!posted) completion.complete(false)
-        return try {
-            completion.await()
-        } finally {
-            completion.cancel()
-            worker.post { if (modeRefresh === completion) modeRefresh = null }
-        }
-    }
-
     private var getTimeoutEpoch = 0
     private val getTimeoutRunnable = Runnable {
         if (epoch != getTimeoutEpoch) return@Runnable
         poll.onGetSettled()
-        finishModeRefresh(false)
+        finishModeReads(false)
     }
 
     fun hasPermissions(): Boolean {
@@ -683,6 +718,8 @@ class St2GattClient(private val context: Context) {
     @SuppressLint("MissingPermission")
     private fun closeInternal() {
         epoch++
+        finishModeReads(false)
+        finishBatteryRequest(false)
         writes.clear()
         writeGapPending = false
         ready = false
@@ -691,7 +728,6 @@ class St2GattClient(private val context: Context) {
         worker.removeCallbacks(pollRunnable)
         worker.removeCallbacks(getTimeoutRunnable)
         poll.resetOutstanding()
-        finishModeRefresh(false)
     }
 
     @SuppressLint("MissingPermission")
@@ -808,9 +844,12 @@ class St2GattClient(private val context: Context) {
         }
         if (!ok) {
             writes.finish(success = false)
-            if (op is GattOp.WriteCommand && op.isGet) {
+            if (op is GattOp.WriteCommand && op.kind == CommandKind.BATTERY_GET) {
+                finishBatteryRequest(false)
+                onOpFinished()
+            } else if (op is GattOp.WriteCommand && op.isGet) {
                 poll.onGetSettled()
-                finishModeRefresh(false)
+                finishModeReads(false)
                 onOpFinished()
             } else if (!scanAfterCachedFailure()) {
                 setError("connect failed")
@@ -863,15 +902,29 @@ class St2GattClient(private val context: Context) {
     }
 
     private fun handleRx(value: ByteArray) {
+        val battery = decodeBatteryReport(value, System.currentTimeMillis())
+        if (battery != null) {
+            val address = activeBondedAddress ?: return
+            if (!address.equals(selectionStore.loadSelectedAddress(), ignoreCase = true)) return
+            selectionStore.saveBatteryLevels(address, battery)
+            finishBatteryRequest(true)
+            hopSession { St2ModeWidget.updateAll(context, preserveStatus = true) }
+            return
+        }
+        if (Gaia.parse(value)?.commandValue == Gaia.GET_BATTERY_LEVELS_ERROR) {
+            finishBatteryRequest(false)
+            return
+        }
         val mode = decodeModeReport(value) ?: return
         val accept = poll.acceptGetReport(mode)
         worker.removeCallbacks(getTimeoutRunnable)
         if (!accept) {
-            finishModeRefresh(false)
+            finishModeReads(false)
             return
         }
+        val modeChanged = selectionStore.loadLastKnownMode() != mode
         selectionStore.saveLastKnownMode(mode)
-        finishModeRefresh(true)
+        finishModeReads(true)
         hopSession {
             _state.update {
                 it.copy(
@@ -881,6 +934,7 @@ class St2GattClient(private val context: Context) {
                     errorMessage = if (it.status == "error") it.errorMessage else null,
                 )
             }
+            if (modeChanged) St2ModeWidget.updateAll(context, preserveStatus = true)
         }
     }
 
@@ -997,6 +1051,7 @@ class St2GattClient(private val context: Context) {
                         }
                         poll.onGetEnqueued()
                         enqueue(GattOp.WriteCommand(Gaia.getCurrentMode(), sending = false))
+                        requestBattery()
                         startPollLoop()
                     }
                 }
@@ -1021,6 +1076,11 @@ class St2GattClient(private val context: Context) {
                     selectionStore.saveLastKnownMode(inFlightOp.mode)
                 }
                 val completedMode = writes.finish(success)
+                if (inFlightOp?.kind == CommandKind.BATTERY_GET) {
+                    if (!success) finishBatteryRequest(false)
+                    onOpFinished()
+                    return@post
+                }
                 if (completedMode != null) {
                     poll.onSetCompleted(completedMode)
                     startPollLoop()
@@ -1029,7 +1089,7 @@ class St2GattClient(private val context: Context) {
                     if (!success) {
                         worker.removeCallbacks(getTimeoutRunnable)
                         poll.onGetSettled()
-                        finishModeRefresh(false)
+                        finishModeReads(false)
                     } else if (poll.shouldArmGetTimeout()) {
                         scheduleGetTimeout()
                     }
@@ -1082,5 +1142,6 @@ class St2GattClient(private val context: Context) {
         private const val DISCONNECT_TIMEOUT_MS = 2000L
         private const val POLL_INTERVAL_MS = 2000L
         private const val GET_RESPONSE_TIMEOUT_MS = 1500L
+        private const val BATTERY_RESPONSE_TIMEOUT_MS = 3_000L
     }
 }

@@ -32,6 +32,14 @@ import dev.camilo.st2mode.widgetTargetOrNull
  * Receiver registration (`exported="false"`) is owned by the manifest.
  */
 class St2ModeWidget : AppWidgetProvider() {
+    override fun onEnabled(context: Context) {
+        St2WidgetRefresh.sync(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        St2WidgetRefresh.sync(context)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_SET_MODE -> {
@@ -58,13 +66,9 @@ class St2ModeWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        appWidgetManager.updateAppWidget(appWidgetIds, buildRemoteViews(context, transientStatus))
         St2WidgetRefresh.sync(context)
+        appWidgetManager.updateAppWidget(appWidgetIds, buildRemoteViews(context, transientStatus))
     }
-
-    override fun onEnabled(context: Context) { St2WidgetRefresh.sync(context) }
-
-    override fun onDisabled(context: Context) { St2WidgetRefresh.sync(context) }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) { St2WidgetRefresh.sync(context) }
 
@@ -75,13 +79,24 @@ class St2ModeWidget : AppWidgetProvider() {
         @Volatile
         private var transientStatus: String? = null
 
+        @Volatile
+        private var statusReplacesCaption = false
+
         /**
          * Refresh every instance. [status] is the in-flight/failure overlay kept
          * only in this process; pass null to clear it. Last-known mode is always
          * read from [St2SelectionStore], not from [status].
          */
-        fun updateAll(context: Context, status: String? = null, preserveStatus: Boolean = false) {
-            if (!preserveStatus) transientStatus = status
+        fun updateAll(
+            context: Context,
+            status: String? = null,
+            preserveStatus: Boolean = false,
+            replaceCaption: Boolean = false,
+        ) {
+            if (!preserveStatus) {
+                transientStatus = status
+                statusReplacesCaption = replaceCaption
+            }
             val app = context.applicationContext
             val manager = AppWidgetManager.getInstance(app)
             val ids = manager.getAppWidgetIds(ComponentName(app, St2ModeWidget::class.java))
@@ -148,12 +163,21 @@ class St2ModeWidget : AppWidgetProvider() {
             val views = RemoteViews(app.packageName, R.layout.st2_mode_widget)
             val presentation = WidgetPresentation(St2SelectionStore(app).loadLastKnownMode(), status)
             val pairedName = selectedBondedDeviceName(app)
-            val caption = pairedName?.let { app.getString(R.string.st2_widget_paired_device, it) }
+            val store = St2SelectionStore(app)
+            val battery = if (pairedName != null) store.loadSelectedAddress()?.let(store::loadBatteryLevels) else null
+            val batteryText = widgetBatteryText(battery, System.currentTimeMillis())
+            val deviceCaption = pairedName?.let { app.getString(R.string.st2_widget_paired_device, it) }
                 ?: app.getString(R.string.st2_widget_no_paired_device)
+            val caption = if (batteryText == null) deviceCaption else
+                app.getString(R.string.st2_widget_device_battery, deviceCaption, batteryText)
             val overlay = presentation.status?.takeIf { it.isNotBlank() }
             views.setTextViewText(
                 R.id.st2_widget_device_status,
-                if (overlay == null) caption else app.getString(R.string.st2_widget_status_caption, caption, overlay),
+                when {
+                    overlay == null -> caption
+                    statusReplacesCaption -> overlay
+                    else -> app.getString(R.string.st2_widget_status_caption, caption, overlay)
+                },
             )
             views.setContentDescription(
                 R.id.st2_widget_root,
@@ -165,6 +189,24 @@ class St2ModeWidget : AppWidgetProvider() {
                 activityPendingIntent(app, REQUEST_OPEN_APP),
             )
             val target = targetOrNull(app)
+            views.setOnClickPendingIntent(
+                R.id.st2_widget_device_status,
+                activityPendingIntent(app, REQUEST_OPEN_APP),
+            )
+            val batteryDescription = batteryText?.let {
+                app.getString(
+                    R.string.st2_widget_battery_description,
+                    deviceCaption,
+                    battery?.left?.takeIf { level -> level > 0 }?.let { level -> app.getString(R.string.st2_widget_left_battery, level) }.orEmpty(),
+                    battery?.right?.takeIf { level -> level > 0 }?.let { level -> app.getString(R.string.st2_widget_right_battery, level) }.orEmpty(),
+                    android.text.format.DateFormat.getTimeFormat(app).format(java.util.Date(requireNotNull(battery).measuredAt)),
+                )
+            } ?: app.getString(R.string.st2_widget_open_device, deviceCaption)
+            views.setContentDescription(R.id.st2_widget_device_status, when {
+                overlay == null -> batteryDescription
+                statusReplacesCaption -> app.getString(R.string.st2_widget_open_device, overlay)
+                else -> app.getString(R.string.st2_widget_status_caption, batteryDescription, overlay)
+            })
             for (mode in widgetModes()) {
                 val ids = modeViewIds(mode) ?: continue
                 val selected = presentation.selectedMode == mode

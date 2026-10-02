@@ -2,6 +2,11 @@
 <resources>
     <string name="st2_widget_description">Set Off, ANC, or Transparency on the selected earbuds</string>
     <string name="st2_widget_paired_device">Paired: %1$s</string>
+    <string name="st2_widget_device_battery">%1$s · %2$s</string>
+    <string name="st2_widget_open_device">%1$s. Open MoonMode.</string>
+    <string name="st2_widget_left_battery">Left earbud %1$d%%.</string>
+    <string name="st2_widget_right_battery">Right earbud %1$d%%.</string>
+    <string name="st2_widget_battery_description">%1$s. %2$s %3$s Last battery reading at %4$s. Open MoonMode.</string>
     <string name="st2_widget_no_paired_device">Select earbuds in MoonMode</string>
     <string name="st2_widget_paired_device_preview">Paired: SPACE TRAVEL 2</string>
     <string name="st2_widget_status_caption">%1$s\n%2$s</string>

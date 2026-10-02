@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 object St2WidgetRefresh {
-    private const val WORK_NAME = "widget_mode_refresh"
+    private const val WORK_NAME = "st2_widget_refresh"
 
     fun hasWidgets(context: Context): Boolean = AppWidgetManager.getInstance(context)
         .getAppWidgetIds(ComponentName(context, St2ModeWidget::class.java)).isNotEmpty()
@@ -53,6 +53,8 @@ class St2WidgetRefreshWorker(context: Context, params: WorkerParameters) : Corou
         if (!AppSettings(context).state.value.widgetRefresh || !St2WidgetRefresh.hasWidgets(context)) {
             return@withContext Result.success()
         }
+        // Redraw cached values even when a read is unavailable, so expired battery data disappears.
+        St2ModeWidget.updateAll(context, preserveStatus = true)
         val target = St2ModeWidget.targetOrNull(context) ?: return@withContext Result.success()
         if (!audioConnected(context, target.bondedAddress)) return@withContext Result.success()
         val client = St2Session.acquireRefreshOrNull(context) ?: return@withContext Result.success()
@@ -69,14 +71,21 @@ class St2WidgetRefreshWorker(context: Context, params: WorkerParameters) : Corou
                 val current = client.state.value
                 if (current.ready) {
                     client.refreshModeAndAwait()
+                    if (AppSettings(context).state.value.widgetRefresh && St2Session.canContinueRefresh()) {
+                        client.refreshBatteryAndAwait()
+                    }
                     return@withTimeoutOrNull
                 }
                 if (current.status != "disconnected" && current.status != "error") return@withTimeoutOrNull
                 openedConnection = true
                 client.connect(allowScan = false)
-                client.state.first {
+                val state = client.state.first {
                     (it.ready && it.currentMode != null) || it.status == "error" ||
                         it.status == "select endpoint" || it.selectedAddress != target.bondedAddress
+                }
+                if (state.ready && state.selectedAddress == target.bondedAddress &&
+                    AppSettings(context).state.value.widgetRefresh && St2Session.canContinueRefresh()) {
+                    client.refreshBatteryAndAwait()
                 }
             }
         } catch (_: SecurityException) {

@@ -16,6 +16,11 @@ object Gaia {
 
     const val FEATURE_BASIC = 0
     const val FEATURE_AUDIO_CURATION = 8
+    const val FEATURE_BATTERY = 13
+    const val CMD_GET_BATTERY_LEVELS = 1
+    const val GET_BATTERY_LEVELS_RESPONSE = 0x1B01
+    const val GET_BATTERY_LEVELS_NOTIFICATION = 0x1A81
+    const val GET_BATTERY_LEVELS_ERROR = 0x1B81
 
     const val CMD_GET_SUPPORTED_FEATURES = 1
     const val CMD_GET_CURRENT_MODE = 3
@@ -54,6 +59,9 @@ object Gaia {
 
     fun getCurrentMode(): ByteArray =
         frame(commandValue(FEATURE_AUDIO_CURATION, TYPE_COMMAND, CMD_GET_CURRENT_MODE))
+
+    fun getBatteryLevels(): ByteArray =
+        frame(commandValue(FEATURE_BATTERY, TYPE_COMMAND, CMD_GET_BATTERY_LEVELS), byteArrayOf(1, 2))
 
     fun setMode(setCode: Int): ByteArray =
         frame(
