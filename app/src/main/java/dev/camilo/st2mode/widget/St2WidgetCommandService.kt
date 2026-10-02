@@ -85,7 +85,7 @@ class St2WidgetCommandService : Service() {
     }
 
     private suspend fun sendMode(mode: AncMode) {
-        St2ModeWidget.updateAll(this, "Changing to ${mode.label}…")
+        St2ModeWidget.updateAll(this, "Changing to ${mode.label}…", replaceCaption = true)
         startForeground(NOTIFICATION_ID, notification(mode), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         val result = try {
             withTimeoutOrNull(COMMAND_TIMEOUT_MS) {
@@ -101,7 +101,9 @@ class St2WidgetCommandService : Service() {
                         it.selectedAddress != target.bondedAddress
                 }
                 if (!state.ready || state.selectedAddress != target.bondedAddress) return@withTimeoutOrNull false
-                shared.setModeAndAwait(mode)
+                if (!shared.setModeAndAwait(mode)) return@withTimeoutOrNull false
+                shared.refreshBatteryAndAwait()
+                true
             }
         } catch (cancelled: CancellationException) {
             throw cancelled

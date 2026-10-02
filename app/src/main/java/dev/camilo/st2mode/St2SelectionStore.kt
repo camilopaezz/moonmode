@@ -2,6 +2,7 @@ package dev.camilo.st2mode
 
 import android.content.Context
 import dev.camilo.st2mode.ble.AncMode
+import dev.camilo.st2mode.ble.BatteryLevels
 
 /**
  * Selected bonded audio address and last-known ANC mode.
@@ -29,6 +30,26 @@ class St2SelectionStore(context: Context) {
 
     fun clearLastKnownMode() {
         prefs.edit().remove(KEY_LAST_MODE).apply()
+    }
+
+    fun loadBatteryLevels(address: String, now: Long = System.currentTimeMillis()): BatteryLevels? {
+        val key = "battery_${address.uppercase(java.util.Locale.ROOT)}"
+        val at = prefs.getLong("${key}_at", 0L)
+        if (at == 0L) return null
+        return BatteryLevels(
+            prefs.getInt("${key}_left", -1).takeIf { it in 0..100 },
+            prefs.getInt("${key}_right", -1).takeIf { it in 0..100 },
+            at,
+        ).takeIf { it.isRecent(now) }
+    }
+
+    fun saveBatteryLevels(address: String, levels: BatteryLevels) {
+        val key = "battery_${address.uppercase(java.util.Locale.ROOT)}"
+        prefs.edit()
+            .putInt("${key}_left", levels.left ?: -1)
+            .putInt("${key}_right", levels.right ?: -1)
+            .putLong("${key}_at", levels.measuredAt)
+            .apply()
     }
 
     companion object {

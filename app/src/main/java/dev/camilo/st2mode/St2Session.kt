@@ -6,7 +6,7 @@ import dev.camilo.st2mode.ble.St2GattClient
 /**
  * Process-scoped owner of the single [St2GattClient].
  *
- * Activity and the widget command service share this so they never open
+ * Activity, widget command service, and refresh worker share this so they never open
  * competing GATT connections. [acquire] creates the client on first use;
  * [release] closes the worker only when the last owner drops its ref.
  *
@@ -20,6 +20,8 @@ import dev.camilo.st2mode.ble.St2GattClient
  * The service acquires this client, connects without scan fallback and waits for the
  * individual SET write to finish. Its attempt has a timeout and it releases its ref
  * when destroyed. It never changes polling or the activity's selected device.
+ * The periodic widget worker uses explicit bounded mode/battery reads without
+ * enabling polling and releases its reference when the refresh ends.
  *
  * If Activity is still resumed it may have polling on; that is fine. If Activity
  * [release]s while the service still holds a ref, the GATT client stays alive.

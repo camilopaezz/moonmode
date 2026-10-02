@@ -146,7 +146,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Paired device name and temporary command status share this caption. -->
+    <!-- Paired device, battery levels, and temporary command status share this caption. -->
     <TextView
         android:id="@id/st2_widget_device_status"
         android:layout_width="match_parent"
@@ -154,6 +154,8 @@
         android:layout_alignParentBottom="true"
         android:layout_marginTop="2dp"
         android:fontFamily="sans-serif"
+        android:clickable="true"
+        android:focusable="true"
         android:gravity="center"
         android:includeFontPadding="false"
         android:maxLines="2"

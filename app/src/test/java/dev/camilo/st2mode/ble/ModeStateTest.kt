@@ -11,6 +11,18 @@ import org.junit.Test
 
 class ModeStateTest {
     @Test
+    fun backgroundSingleReadAcceptsStateWithoutEnablingContinuousPolling() {
+        val poll = ModePoll { 0L }
+        assertFalse(poll.enabled)
+        assertFalse(poll.shouldEnqueueGet(ready = true, setBusy = false))
+        poll.onGetEnqueued()
+        assertTrue(poll.acceptGetReport(AncMode.Transparency))
+        assertFalse(poll.awaitingGet)
+        assertFalse(poll.enabled)
+        assertFalse(poll.shouldEnqueueGet(ready = true, setBusy = false))
+    }
+
+    @Test
     fun pollImmediatelyAfterSetCannotRevertTheDisplayedMode() {
         val poll = ModePoll { 0L }
         val writes = ModeWrites()

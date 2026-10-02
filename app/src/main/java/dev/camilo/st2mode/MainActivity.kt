@@ -82,6 +82,7 @@ import dev.camilo.st2mode.ui.modePresentation
 import dev.camilo.st2mode.ui.theme.St2ModeTheme
 import dev.camilo.st2mode.ui.theme.MoonModeBrandStyle
 import dev.camilo.st2mode.widget.St2ModeWidget
+import dev.camilo.st2mode.widget.St2WidgetRefresh
 
 class MainActivity : ComponentActivity() {
     private lateinit var client: St2GattClient
@@ -102,6 +103,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        St2WidgetRefresh.sync(this)
         client = St2Session.acquire(this)
         sessionHeld = true
         enableEdgeToEdge()

@@ -2,6 +2,9 @@
 
 ANC mode control for SPACE TRAVEL 2 over GAIA V3 BLE.
 
+[Battery protocol research](docs/battery-protocol.md) records the official app's
+GAIA commands and device validation for battery readings.
+
 ## Build
 
 Requires **JDK 17** and the Android SDK with platform 36. Set `JAVA_HOME` to your JDK 17 installation and set the SDK path in `local.properties` or `ANDROID_HOME`.
@@ -14,9 +17,29 @@ Requires **JDK 17** and the Android SDK with platform 36. Set `JAVA_HOME` to you
 
 After pairing the earbuds, connect in the app once and confirm the BLE endpoint. Add **MoonMode** from your launcher's widget picker. The widget has Off, ANC, and Transparency buttons and uses the device selected in the app.
 
-A tap connects to the saved endpoint, sends the mode command, then stops the short-lived Bluetooth foreground service. It doesn't poll in the background. Rapid taps keep the latest pending mode while the current command finishes. Each command attempt times out after 30 seconds.
+A tap connects to the saved endpoint, sends the mode command, then stops the short-lived Bluetooth foreground service. Rapid taps keep the latest pending mode while the current command finishes. Each command attempt times out after 30 seconds.
 
 The widget footer shows the selected paired device. The highlighted mode is the last confirmed setting, not a live reading. Tap the title to open the app. If Bluetooth permissions or setup are missing, the mode buttons open the app instead. A failed command leaves a message asking you to open the app; endpoint discovery and confirmation stay in the app.
+
+Left and right battery percentages appear beside the paired device when known,
+for example `Paired: Space Travel 2 · L 80% · R 70%`. Tap the footer to open the app.
+Battery is also queried on connection and after widget mode changes. The widget
+shows the last successful reading, hides unknown buds, sides reporting zero, and readings older than
+24 hours. Battery query failures do not turn
+a successful mode change into an error.
+
+While a widget exists, WorkManager schedules a mode and battery refresh every
+15 minutes. Android may delay it during Doze or Battery Saver. Each refresh skips
+Bluetooth when permissions/setup are missing or the selected earbuds are not
+connected for audio. It reuses the shared BLE client, uses only the confirmed
+endpoint, and limits the BLE session to 12 seconds. It never scans, starts a
+foreground service, or retries immediately. Work pauses when the phone battery
+is low and is canceled when the last widget is removed. A connection opened only
+for a refresh closes when that worker releases it.
+
+[Notification protocol research](docs/notification-protocol.md) records the SDK
+subscriptions for immediate mode and battery changes. Those device events are
+not yet verified or enabled by MoonMode.
 
 ## Tests
 
