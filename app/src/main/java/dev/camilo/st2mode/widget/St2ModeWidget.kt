@@ -70,6 +70,8 @@ class St2ModeWidget : AppWidgetProvider() {
         appWidgetManager.updateAppWidget(appWidgetIds, buildRemoteViews(context, transientStatus))
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) { St2WidgetRefresh.sync(context) }
+
     companion object {
         const val ACTION_SET_MODE = "dev.camilo.st2mode.widget.SET_MODE"
         const val EXTRA_MODE = "mode"

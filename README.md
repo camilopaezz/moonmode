@@ -28,18 +28,35 @@ shows the last successful reading, hides unknown buds, sides reporting zero, and
 24 hours. Battery query failures do not turn
 a successful mode change into an error.
 
-While a widget exists, WorkManager schedules a mode and battery refresh every
-15 minutes. Android may delay it during Doze or Battery Saver. Each refresh skips
-Bluetooth when permissions/setup are missing or the selected earbuds are not
-connected for audio. It reuses the shared BLE client, uses only the confirmed
-endpoint, and limits the BLE session to 12 seconds. It never scans, starts a
-foreground service, or retries immediately. Work pauses when the phone battery
-is low and is canceled when the last widget is removed. A connection opened only
-for a refresh closes when that worker releases it.
-
 [Notification protocol research](docs/notification-protocol.md) records the SDK
 subscriptions for immediate mode and battery changes. Those device events are
 not yet verified or enabled by MoonMode.
+
+## Settings
+
+Use the gear button to switch paired earbuds, reset the selected earbuds’ saved BLE
+endpoint, and configure connection, widget refresh, and appearance. Reset disconnects
+the control session and repeats endpoint discovery on the next Connect. It does not
+remove Android Bluetooth pairing.
+
+Connect when opening the app is off by default. When enabled, MoonMode tries once
+per shared client session after Bluetooth access and a selected device are available.
+Activity recreation tries again if the previous client was destroyed. A failed
+attempt leaves the normal Retry button available.
+
+Background widget refresh is on by default and runs only while a widget exists.
+WorkManager schedules it about every 15 minutes; Android may delay it during Doze
+or Battery Saver. Refresh pauses when the phone battery is low, skips earbuds that
+are not connected for audio, and never scans or sends mode changes. A refresh opens
+a control connection for at most 12 seconds, reads the mode and battery, and releases it. Resumed
+activities and widget commands take priority. A paused activity shares its idle client
+with background refresh. Background connection failures preserve the saved endpoint. Turning refresh off cancels the schedule;
+app usage and widget commands still update the cached mode and battery.
+
+Appearance supports System, Light, and Dark, with either Android wallpaper colors
+or MoonMode’s purple palette. These preferences apply to the app; the widget follows
+Android’s theme. Settings also provides permission status, Android settings shortcuts,
+widget setup instructions, the app version, and bundled licenses.
 
 ## Tests
 

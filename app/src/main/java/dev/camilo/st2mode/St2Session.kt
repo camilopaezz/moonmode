@@ -28,30 +28,48 @@ import dev.camilo.st2mode.ble.St2GattClient
  */
 object St2Session {
     private var client: St2GattClient? = null
-    private var refs: Int = 0
+    private val ownership = SessionOwnership()
 
     @Synchronized
-    fun acquire(context: Context): St2GattClient {
-        val existing = client
-        if (existing != null) {
-            refs += 1
-            return existing
-        }
-        val created = St2GattClient(context.applicationContext)
-        client = created
-        refs = 1
-        return created
+    fun acquire(context: Context, owner: SessionOwner = SessionOwner.Activity): St2GattClient {
+        val shared = client ?: St2GattClient(context.applicationContext).also { client = it }
+        ownership.acquire(owner)
+        return shared
     }
 
-    /**
-     * Drop one owner. No-op if nothing is held (duplicate [android.app.Activity.onDestroy]
-     * or a service timeout after a previous release).
-     */
+    /** Resumed activities and user commands take priority; a paused activity may share its client. */
     @Synchronized
-    fun release() {
-        if (refs <= 0) return
-        refs -= 1
-        if (refs == 0) {
+    fun acquireRefreshOrNull(context: Context): St2GattClient? =
+        if (ownership.canRefresh()) acquire(context, SessionOwner.WidgetRefresh) else null
+
+    @Synchronized
+    fun canContinueRefresh(): Boolean = ownership.canContinueRefresh()
+
+    /** Runs on the GATT worker; ownership cannot change between the check and close. */
+    @Synchronized
+    fun runRefreshCleanupIfIdle(shared: St2GattClient, close: () -> Unit) {
+        if (client === shared) ownership.runRefreshCleanupIfIdle(close)
+    }
+
+    @Synchronized
+    fun activityResumed() { ownership.activityResumed() }
+
+    @Synchronized
+    fun activityPaused() { ownership.activityPaused() }
+
+    /** The launch attempt belongs to this client, including any owners keeping it alive. */
+    @Synchronized
+    fun connectOnOpenIfNeeded(enabled: Boolean) {
+        val shared = client ?: return
+        if (ownership.claimAutoConnect(enabled, shared.hasPermissions(), shared.state.value.selectedAddress != null)) {
+            shared.connect()
+        }
+    }
+
+    @Synchronized
+    fun release(owner: SessionOwner = SessionOwner.Activity) {
+        ownership.release(owner)
+        if (ownership.references == 0) {
             client?.release()
             client = null
         }

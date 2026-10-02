@@ -439,8 +439,9 @@ class St2GattClient(private val context: Context) {
             } else {
                 val endpoint = runCatching { adapter.getRemoteDevice(cached) }.getOrNull()
                 if (endpoint == null) {
-                    confirmedEndpoints.edit().remove(bondedAddress).apply()
-                    if (allowScan) {
+                    if (recoverCachedEndpoint(bondedAddress, allowScan) {
+                        confirmedEndpoints.edit().remove(it).apply()
+                    }) {
                         hop { _state.update { it.copy(status = "scanning") } }
                         startScan(device.name, bondedAddress)
                     } else {
@@ -487,6 +488,34 @@ class St2GattClient(private val context: Context) {
                         endpoints = emptyList(),
                     )
                 }
+            }
+        }
+    }
+
+    /** Recheck ownership when cleanup executes, and never close a later connection attempt. */
+    fun disconnectAfterRefresh(runIfIdle: (() -> Unit) -> Unit) {
+        val refreshAttempt = attempt
+        worker.post {
+            if (attempt != refreshAttempt) return@post
+            runIfIdle {
+                cancelAttempt()
+                // Publish under the same ownership lock before a new command can acquire this client.
+                _state.update { it.copy(status = "disconnected", errorMessage = null,
+                    currentMode = null, ready = false, endpoints = emptyList()) }
+            }
+        }
+    }
+
+    /** Reset only this device's control endpoint, after closing its active session. */
+    fun resetSelectedEndpoint() {
+        val address = _state.value.selectedAddress ?: return
+        worker.post {
+            if (_state.value.selectedAddress != address) return@post
+            cancelAttempt()
+            confirmedEndpoints.edit().remove(address).apply()
+            hop {
+                _state.update { it.copy(status = "disconnected", errorMessage = null,
+                    currentMode = null, ready = false, endpoints = emptyList()) }
             }
         }
     }
@@ -653,9 +682,10 @@ class St2GattClient(private val context: Context) {
         if (!connectingCached) return false
         val bondedAddress = activeBondedAddress ?: return false
         connectingCached = false
-        confirmedEndpoints.edit().remove(bondedAddress).apply()
         pendingConnect = null
-        if (!allowScanFallback) return false
+        if (!recoverCachedEndpoint(bondedAddress, allowScanFallback) {
+            confirmedEndpoints.edit().remove(it).apply()
+        }) return false
         if (gatt != null && !closing) beginDisconnect()
         val name = _state.value.bonded.firstOrNull { it.address == bondedAddress }?.name
         startScan(name, bondedAddress)

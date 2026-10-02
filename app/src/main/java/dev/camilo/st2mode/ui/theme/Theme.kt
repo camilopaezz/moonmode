@@ -1,6 +1,7 @@
 package dev.camilo.st2mode.ui.theme
 
-import android.os.Build
+import dev.camilo.st2mode.SettingsPreferences
+import dev.camilo.st2mode.ThemePreference
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -43,9 +44,13 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun St2ModeTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val scheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+fun St2ModeTheme(settings: SettingsPreferences = SettingsPreferences(), content: @Composable () -> Unit) {
+    val dark = when (settings.theme) {
+        ThemePreference.System -> isSystemInDarkTheme()
+        ThemePreference.Light -> false
+        ThemePreference.Dark -> true
+    }
+    val scheme = if (settings.wallpaperColors) {
         val context = LocalContext.current
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     } else {

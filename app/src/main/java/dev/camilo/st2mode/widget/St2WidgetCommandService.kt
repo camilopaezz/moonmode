@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import dev.camilo.st2mode.MainActivity
+import dev.camilo.st2mode.SessionOwner
 import dev.camilo.st2mode.St2Session
 import dev.camilo.st2mode.decodeWidgetMode
 import dev.camilo.st2mode.ble.AncMode
@@ -90,7 +91,7 @@ class St2WidgetCommandService : Service() {
         val result = try {
             withTimeoutOrNull(COMMAND_TIMEOUT_MS) {
                 val target = St2ModeWidget.targetOrNull(this@St2WidgetCommandService) ?: return@withTimeoutOrNull false
-                val shared = client ?: St2Session.acquire(this@St2WidgetCommandService).also { client = it }
+                val shared = client ?: St2Session.acquire(this@St2WidgetCommandService, SessionOwner.WidgetCommand).also { client = it }
                 shared.refreshBonded()
                 // Never replace an activity's selection or start endpoint discovery from the widget.
                 if (shared.state.value.selectedAddress != target.bondedAddress) return@withTimeoutOrNull false
@@ -143,7 +144,7 @@ class St2WidgetCommandService : Service() {
         scope.cancel()
         requests.close()
         if (client != null) {
-            St2Session.release()
+            St2Session.release(SessionOwner.WidgetCommand)
             client = null
         }
         super.onDestroy()

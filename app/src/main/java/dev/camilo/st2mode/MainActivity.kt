@@ -47,13 +47,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.view.WindowCompat
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,9 +79,9 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.camilo.st2mode.ble.AncMode
-import dev.camilo.st2mode.ble.BondedDevice
 import dev.camilo.st2mode.ble.ClientState
 import dev.camilo.st2mode.ble.St2GattClient
+import dev.camilo.st2mode.ui.SettingsScreen
 import dev.camilo.st2mode.ui.ModePresentation
 import dev.camilo.st2mode.ui.modeIcon
 import dev.camilo.st2mode.ui.modePresentation
@@ -87,10 +93,13 @@ import dev.camilo.st2mode.widget.St2WidgetRefresh
 class MainActivity : ComponentActivity() {
     private lateinit var client: St2GattClient
     private var sessionHeld = false
+    private var foregroundHeld = false
+    private var bluetoothAllowed by mutableStateOf(false)
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { grants ->
+        bluetoothAllowed = client.hasPermissions()
         val ok = grants[Manifest.permission.BLUETOOTH_CONNECT] == true &&
             grants[Manifest.permission.BLUETOOTH_SCAN] == true
         if (ok) {
@@ -105,6 +114,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         St2WidgetRefresh.sync(this)
         client = St2Session.acquire(this)
+        bluetoothAllowed = client.hasPermissions()
         sessionHeld = true
         enableEdgeToEdge()
         if (client.hasPermissions()) {
@@ -117,12 +127,37 @@ class MainActivity : ComponentActivity() {
                 ),
             )
         }
+        val settings = AppSettings(this)
+        val connectOnOpen = settings.state.value.connectOnOpen
         setContent {
-            St2ModeTheme {
+            val preferences by settings.state.collectAsState()
+            var showSettings by rememberSaveable { mutableStateOf(false) }
+            St2ModeTheme(preferences) {
+                val lightBars = MaterialTheme.colorScheme.background.luminance() > 0.5f
+                SideEffect {
+                    WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = lightBars
+                        isAppearanceLightNavigationBars = lightBars
+                    }
+                }
                 val ui by client.state.collectAsState()
-                St2Screen(
+                LaunchedEffect(ui.selectedAddress, bluetoothAllowed) {
+                    St2Session.connectOnOpenIfNeeded(connectOnOpen)
+                }
+                if (showSettings) {
+                    SettingsScreen(ui, preferences, bluetoothAllowed,
+                        onBack = { showSettings = false }, onSelect = {
+                            client.select(it)
+                        }, onReset = {
+                            client.resetSelectedEndpoint()
+                            showSettings = false
+                        }, onUpdate = {
+                            settings.update(it)
+                            St2WidgetRefresh.sync(this)
+                        })
+                } else St2Screen(
                     state = ui,
-                    onSelect = client::select,
+                    onSettings = { showSettings = true },
                     onConnect = {
                         if (client.hasPermissions()) {
                             client.connect()
@@ -146,12 +181,21 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (::client.isInitialized) {
+            if (!foregroundHeld) {
+                St2Session.activityResumed()
+                foregroundHeld = true
+            }
+            bluetoothAllowed = client.hasPermissions()
             client.setPollingEnabled(true)
             if (client.hasPermissions()) client.refreshBonded()
         }
     }
 
     override fun onPause() {
+        if (foregroundHeld) {
+            St2Session.activityPaused()
+            foregroundHeld = false
+        }
         if (::client.isInitialized) client.setPollingEnabled(false)
         St2ModeWidget.updateAll(this)
         super.onPause()
@@ -170,7 +214,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun St2Screen(
     state: ClientState,
-    onSelect: (String) -> Unit,
+    onSettings: () -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onEndpoint: (String) -> Unit,
@@ -179,7 +223,6 @@ private fun St2Screen(
     val presentation = modePresentation(state)
     val canConnect = state.status == "disconnected" || state.status == "error"
     val needsSetup = state.status == "select endpoint"
-    val hasChoices = state.bonded.size > 1
     val hasError = state.errorMessage != null
     val deviceName = state.bonded.firstOrNull { it.address == state.selectedAddress }
         ?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.no_device)
@@ -211,10 +254,10 @@ private fun St2Screen(
                         style = MoonModeBrandStyle,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    IconButton(onClick = {}, enabled = false) {
+                    IconButton(onClick = onSettings) {
                         Icon(
                             painter = painterResource(R.drawable.ic_settings),
-                            contentDescription = stringResource(R.string.settings_coming_soon),
+                            contentDescription = stringResource(R.string.settings),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp),
                         )
@@ -270,7 +313,7 @@ private fun St2Screen(
             Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding),
         ) {
             val signMinimumHeight = ((maxHeight - 16.dp) *
-                if (needsSetup || hasChoices || hasError) 0.5f else 1f).coerceAtLeast(220.dp)
+                if (needsSetup || hasError) 0.5f else 1f).coerceAtLeast(220.dp)
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
@@ -309,21 +352,7 @@ private fun St2Screen(
                         }
                     }
                 }
-                if (hasChoices) {
-                    item {
-                        Text(
-                            stringResource(R.string.paired_devices),
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                    }
-                    items(state.bonded, key = { it.address }) { device ->
-                        BondedRow(
-                            device = device,
-                            selected = device.address == state.selectedAddress,
-                            onSelect = { onSelect(device.address) },
-                        )
-                    }
-                }
+
             }
         }
     }
@@ -546,22 +575,6 @@ private fun ModeChooser(presentation: ModePresentation, onMode: (AncMode) -> Uni
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun BondedRow(device: BondedDevice, selected: Boolean, onSelect: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth()
-            .selectable(selected = selected, onClick = onSelect, role = Role.RadioButton)
-            .heightIn(min = 48.dp).padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Column(Modifier.padding(start = 8.dp)) {
-            Text(device.name, style = MaterialTheme.typography.bodyLarge)
-            Text(device.address, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
