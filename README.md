@@ -66,6 +66,11 @@ widget setup instructions, the app version, and bundled licenses.
 
 Use the same JDK 17 setup as the build command.
 
+`ProfileConnectionTest` covers Bluetooth proxy cleanup triggering a disconnect
+callback before the connection check returns. The worker now completes the check
+before closing the proxy, so cleanup cannot make connected earbuds appear
+disconnected and skip a widget refresh.
+
 ## CI
 
 GitHub Actions runs unit tests, Android lint, and a debug APK build on pushes to `main` and pull requests. You can also run it manually from the Actions tab. Each run uploads reports and, when successful, a `moonmode-debug` APK artifact, retained for seven days.

@@ -3,8 +3,9 @@
 Research date: 2026-10-01. Source is the official Moondrop app's bundled
 Qualcomm SDK, decompiled locally from the APK identified in
 [battery-protocol.md](battery-protocol.md). No device commands were sent during
-this research. SDK support is confirmed; unsolicited notifications on the
-user's Space Travel 2 firmware are still unverified.
+the initial research. SDK support is confirmed. Live tests on 2026-10-02
+received successful subscription responses but no unsolicited notifications;
+details and limitations are recorded below.
 
 ## Registration and transport
 
@@ -123,3 +124,52 @@ Push reports can update app and widget state while a control session is alive.
 They cannot arrive after MoonMode disconnects BLE. Reliable immediate updates
 with the app closed would also need a deliberate connection-lifetime policy.
 The scheduled 15-minute reads remain useful when no session is held.
+
+## Xiaomi live probe, 2026-10-02
+
+The retained [probe log excerpt](notification-probe-2026-10-02.log) records
+the end of the second run, including its final reads and cancellation attempts.
+Its timestamps are the phone's logcat clock. The observations below summarize
+both runs; the excerpt does not contain their full traffic.
+
+Two separate 60-second observation windows used the selected, previously
+confirmed BLE endpoint on Xiaomi 21081111RG, Android 14. Both response and data
+CCCDs were enabled. The debug-only probe made baseline reads, subscribed to
+features `08` and `0D`, stopped sending commands for 60 seconds, read again,
+attempted cancellation, and closed the connection. It never sent mode SETs.
+The ordinary app polling loop was not active, and widget refresh was excluded
+while the probe held its connection.
+
+Both registrations returned `00 1D 01 07` with no payload in each run.
+These are successful GAIA responses, not just GATT write callbacks, but they
+do not establish that this firmware actually sends events.
+
+| Check | First run | Second run |
+|---|---|---|
+| Initial mode read | Off, `00 1D 11 03 00 01 00 00` | Off, same frame |
+| Physical changes | User reported Transparency, ANC, Off | User confirmed Off to Transparency, left there |
+| Final mode read | Off, same frame | Transparency, `00 1D 11 03 02 01 00 00` |
+| Unsolicited packets during observation | None on either characteristic | None on either characteristic |
+| Battery before and after | `00 1D 1B 01 01 00 02 3C` | Same frame |
+
+The second run establishes that the probed endpoint observes the changed mode
+through GET, despite sending no mode-change notification during observation.
+No `0x1081`, `0x1083`, or other unsolicited frame appeared. Push mode updates
+are therefore **not demonstrated with this subscription sequence**. This does
+not prove that notifications are impossible: an additional initialization step,
+a different event registration mechanism, or firmware differences could matter.
+The next useful investigation is an official-app Bluetooth trace to compare its
+initialization and physical-change traffic with this sequence.
+
+Battery values did not change, so the absence of `0x1A81` is inconclusive.
+Left reported zero and right reported 60%; zero does not establish whether the
+left bud was empty or unavailable. This experiment does not verify battery
+subscriptions or side-availability events.
+
+The BASIC supported-feature query `00 1D 00 01` timed out in both runs, so
+firmware and feature versions were not established. Cancellation commands
+`00 1D 00 08 08` and `00 1D 00 08 0D` also received no responses within two
+seconds each. Closing GATT ended each test regardless of cancellation support.
+
+The probe was a temporary diagnostic tool and is not included in the app.
+Production subscriptions and the widget's 15-minute refresh policy remain unchanged.

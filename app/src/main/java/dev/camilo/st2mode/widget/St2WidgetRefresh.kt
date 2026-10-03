@@ -20,10 +20,8 @@ import dev.camilo.st2mode.AppSettings
 import dev.camilo.st2mode.SessionOwner
 import dev.camilo.st2mode.St2Session
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -103,32 +101,20 @@ class St2WidgetRefreshWorker(context: Context, params: WorkerParameters) : Corou
     @SuppressLint("MissingPermission")
     private suspend fun audioConnected(context: Context, address: String): Boolean =
         withTimeoutOrNull(2_000L) {
-            suspendCancellableCoroutine { continuation ->
-                val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
-                if (adapter == null) {
-                    continuation.resume(false)
-                    return@suspendCancellableCoroutine
-                }
-                val listener = object : BluetoothProfile.ServiceListener {
-                    override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
-                        val connected = try {
-                            proxy.connectedDevices.any { it.address.equals(address, ignoreCase = true) }
-                        } catch (_: SecurityException) {
-                            false
-                        } finally {
-                            adapter.closeProfileProxy(profile, proxy)
-                        }
-                        if (continuation.isActive) continuation.resume(connected)
-                    }
-                    override fun onServiceDisconnected(profile: Int) {
-                        if (continuation.isActive) continuation.resume(false)
-                    }
-                }
-                val accepted = try {
-                    adapter.getProfileProxy(context, listener, BluetoothProfile.A2DP)
-                } catch (_: SecurityException) { false }
-                if (!accepted && continuation.isActive) continuation.resume(false)
-            }
+            val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
+                ?: return@withTimeoutOrNull false
+            awaitProfileConnection<BluetoothProfile>(
+                request = { connected, disconnected ->
+                    adapter.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
+                        override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) = connected(proxy)
+                        override fun onServiceDisconnected(profile: Int) = disconnected()
+                    }, BluetoothProfile.A2DP)
+                },
+                isConnected = { proxy ->
+                    proxy.connectedDevices.any { it.address.equals(address, ignoreCase = true) }
+                },
+                close = { proxy -> adapter.closeProfileProxy(BluetoothProfile.A2DP, proxy) },
+            )
         } ?: false
 }
 
