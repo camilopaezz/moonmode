@@ -95,14 +95,13 @@ class St2WidgetCommandService : Service() {
                 shared.refreshBonded()
                 // Never replace an activity's selection or start endpoint discovery from the widget.
                 if (shared.state.value.selectedAddress != target.bondedAddress) return@withTimeoutOrNull false
-                shared.connect(allowScan = false)
+                if (!shared.connectAndSetModeAndAwait(mode, target.bondedAddress)) return@withTimeoutOrNull false
                 val state = shared.state.first {
                     it.ready || it.status == "error" || it.status == "select endpoint" ||
                         it.status == "disconnected" ||
                         it.selectedAddress != target.bondedAddress
                 }
                 if (!state.ready || state.selectedAddress != target.bondedAddress) return@withTimeoutOrNull false
-                if (!shared.setModeAndAwait(mode)) return@withTimeoutOrNull false
                 shared.refreshBatteryAndAwait()
                 true
             }

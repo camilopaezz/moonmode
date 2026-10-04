@@ -15,10 +15,13 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.SystemClock
+import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.camilo.st2mode.St2SelectionStore
 import dev.camilo.st2mode.resolveBondedSelection
@@ -66,6 +69,31 @@ internal sealed class GattOp {
     }
 }
 
+/** Commands registered before discovery belong to one selected device and connection attempt. */
+internal class PendingModeWrites {
+    private data class Pending(val address: String, val attempt: Int, val op: GattOp.WriteCommand)
+    private val pending = mutableListOf<Pending>()
+
+    fun add(address: String, attempt: Int, op: GattOp.WriteCommand) {
+        pending.add(Pending(address, attempt, op))
+    }
+
+    fun take(address: String?, attempt: Int): List<GattOp.WriteCommand> {
+        val result = pending.filter {
+            val matches = it.address == address && it.attempt == attempt
+            if (!matches) it.op.completion?.complete(false)
+            matches && it.op.completion?.isCancelled != true
+        }.map { it.op }
+        pending.clear()
+        return result
+    }
+
+    fun clear() {
+        pending.forEach { it.op.completion?.complete(false) }
+        pending.clear()
+    }
+}
+
 /** The queue and its active operation share one owner so a write callback cannot pick a later mode. */
 internal class ModeWrites {
     private val queue = ArrayDeque<GattOp>()
@@ -73,6 +101,21 @@ internal class ModeWrites {
         private set
 
     fun enqueue(op: GattOp) { queue.addLast(op) }
+
+    /** A new user command overtakes setup and reads while preserving earlier SET order. */
+    fun enqueuePriority(op: GattOp.WriteCommand) {
+        val earlierSets = queue.filter { it is GattOp.WriteCommand && it.isSet }
+        queue.removeAll(earlierSets.toSet())
+        queue.addFirst(op)
+        earlierSets.asReversed().forEach(queue::addFirst)
+    }
+
+    /** Called once after discovery, before the queue is pumped. */
+    fun enqueueServiceSetup(commands: List<GattOp.WriteCommand>) {
+        commands.forEach(::enqueue)
+        enqueue(GattOp.WriteCccd(Gaia.CHAR_RESPONSE))
+        enqueue(GattOp.WriteCccd(Gaia.CHAR_DATA))
+    }
 
     fun startNext(): GattOp? {
         if (inFlight != null) return null
@@ -253,6 +296,15 @@ class St2GattClient(private val context: Context) {
     private val scanDevices = mutableMapOf<String, Pair<BluetoothDevice, String>>()
 
     private val writes = ModeWrites()
+    private val pendingModes = PendingModeWrites()
+    private var connectionStartedMs = 0L
+    private var earlySetCompleted = false
+
+    private fun logLatency(stage: String) {
+        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            Log.d("st2-latency", "$stage elapsedMs=${SystemClock.elapsedRealtime() - connectionStartedMs}")
+        }
+    }
     private val poll = ModePoll()
     private var writeGapPending = false
     private val modeReadWaiters = mutableListOf<CompletableDeferred<Boolean>>()
@@ -520,6 +572,46 @@ class St2GattClient(private val context: Context) {
         }
     }
 
+    /** Register the requested mode before connecting, so discovery can send it before subscriptions. */
+    suspend fun connectAndSetModeAndAwait(mode: AncMode, expectedBondedAddress: String): Boolean {
+        val completion = CompletableDeferred<Boolean>()
+        if (!worker.post {
+            val status = _state.value.status
+            if (completion.isCancelled || _state.value.selectedAddress != expectedBondedAddress ||
+                status !in setOf("disconnected", "error", "connecting", "connected", "sending")) {
+                completion.complete(false)
+                return@post
+            }
+            val op = GattOp.WriteCommand(
+                Gaia.setMode(mode.setCode), sending = true, mode = mode, completion = completion,
+            )
+            poll.onSetRequested()
+            if (writes.dropQueuedGets()) poll.onQueuedGetDropped()
+            if (ready) {
+                enqueue(op)
+            } else if (commandChar != null && !closing &&
+                (status == "connecting" || status == "sending")) {
+                writes.enqueuePriority(op)
+                pump()
+            } else {
+                val starting = _state.value.status == "disconnected" || _state.value.status == "error"
+                pendingModes.add(expectedBondedAddress, if (starting) attempt + 1 else attempt, op)
+                if (starting) hop {
+                    if (!completion.isCancelled && _state.value.selectedAddress == expectedBondedAddress) {
+                        connect(allowScan = false)
+                    } else {
+                        completion.complete(false)
+                    }
+                }
+            }
+        }) return false
+        return try {
+            completion.await()
+        } finally {
+            completion.cancel()
+        }
+    }
+
     fun setMode(mode: AncMode) = enqueueMode(mode, null)
 
     /** Wait for this command's write callback, not a cached mode or another writer's result. */
@@ -703,6 +795,8 @@ class St2GattClient(private val context: Context) {
 
     private fun setError(message: String) {
         ready = false
+        if (Looper.myLooper() == workerThread.looper) pendingModes.clear()
+        else worker.post { pendingModes.clear() }
         val update = {
             _state.update {
                 it.copy(status = "error", errorMessage = message, ready = false)
@@ -716,8 +810,10 @@ class St2GattClient(private val context: Context) {
     private fun isCurrentSession(g: BluetoothGatt): Boolean = gatt === g && !closing
 
     @SuppressLint("MissingPermission")
-    private fun closeInternal() {
+    private fun closeInternal(preservePendingModes: Boolean = false) {
         epoch++
+        if (!preservePendingModes) pendingModes.clear()
+        earlySetCompleted = false
         finishModeReads(false)
         finishBatteryRequest(false)
         writes.clear()
@@ -731,9 +827,12 @@ class St2GattClient(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
-    private fun beginDisconnect() {
-        if (closing) return
-        closeInternal()
+    private fun beginDisconnect(preservePendingModes: Boolean = false) {
+        if (closing) {
+            if (!preservePendingModes) pendingModes.clear()
+            return
+        }
+        closeInternal(preservePendingModes)
         val g = gatt ?: return
         closing = true
         runCatching { g.disconnect() }
@@ -779,7 +878,7 @@ class St2GattClient(private val context: Context) {
     private fun connectOnWorker(device: BluetoothDevice) {
         pendingConnect = device
         if (gatt != null || closing) {
-            if (gatt != null && !closing) beginDisconnect()
+            if (gatt != null && !closing) beginDisconnect(preservePendingModes = true)
             return
         }
         pendingConnect = null
@@ -790,6 +889,8 @@ class St2GattClient(private val context: Context) {
     private fun openGatt(device: BluetoothDevice) {
         closing = false
         gattAttempt = attempt
+        connectionStartedMs = SystemClock.elapsedRealtime()
+        logLatency("connect-start")
         val opened = try {
             device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
         } catch (_: SecurityException) {
@@ -851,8 +952,9 @@ class St2GattClient(private val context: Context) {
                 poll.onGetSettled()
                 finishModeReads(false)
                 onOpFinished()
-            } else if (!scanAfterCachedFailure()) {
-                setError("connect failed")
+            } else {
+                if (!ready) beginDisconnect()
+                if (!scanAfterCachedFailure()) setError("connect failed")
             }
         }
     }
@@ -887,6 +989,7 @@ class St2GattClient(private val context: Context) {
     private fun writeCommand(g: BluetoothGatt, bytes: ByteArray, sending: Boolean): Boolean {
         val ch = commandChar ?: return false
         if (sending) {
+            logLatency("mode-write-start")
             hopSession { _state.update { it.copy(status = "sending", errorMessage = null) } }
         }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -917,6 +1020,7 @@ class St2GattClient(private val context: Context) {
         }
         val mode = decodeModeReport(value) ?: return
         val accept = poll.acceptGetReport(mode)
+        if (accept) logLatency("mode-report-${mode.label}")
         worker.removeCallbacks(getTimeoutRunnable)
         if (!accept) {
             finishModeReads(false)
@@ -950,6 +1054,7 @@ class St2GattClient(private val context: Context) {
                         if (!scanAfterCachedFailure()) setError("connect failed")
                         return@post
                     }
+                    logLatency("connected")
                     if (!g.discoverServices()) {
                         beginDisconnect()
                         if (!scanAfterCachedFailure()) setError("connect failed")
@@ -1014,9 +1119,11 @@ class St2GattClient(private val context: Context) {
                     return@post
                 }
                 commandChar = cmd
+                logLatency("services-discovered")
                 cccdRemaining = 2
-                enqueue(GattOp.WriteCccd(Gaia.CHAR_RESPONSE))
-                enqueue(GattOp.WriteCccd(Gaia.CHAR_DATA))
+                val commands = pendingModes.take(activeBondedAddress, attempt)
+                writes.enqueueServiceSetup(commands)
+                pump()
             }
         }
 
@@ -1049,8 +1156,10 @@ class St2GattClient(private val context: Context) {
                                 it.copy(status = "connected", errorMessage = null, ready = true)
                             }
                         }
-                        poll.onGetEnqueued()
-                        enqueue(GattOp.WriteCommand(Gaia.getCurrentMode(), sending = false))
+                        if (!earlySetCompleted && !writes.hasSet()) {
+                            poll.onGetEnqueued()
+                            enqueue(GattOp.WriteCommand(Gaia.getCurrentMode(), sending = false))
+                        }
                         requestBattery()
                         startPollLoop()
                     }
@@ -1082,6 +1191,8 @@ class St2GattClient(private val context: Context) {
                     return@post
                 }
                 if (completedMode != null) {
+                    if (!ready) earlySetCompleted = true
+                    logLatency("mode-write-complete")
                     poll.onSetCompleted(completedMode)
                     startPollLoop()
                 }
@@ -1097,6 +1208,7 @@ class St2GattClient(private val context: Context) {
                     return@post
                 }
                 if (!success) {
+                    if (!ready) beginDisconnect()
                     setError("connect failed")
                     return@post
                 }
@@ -1105,7 +1217,9 @@ class St2GattClient(private val context: Context) {
                         current.copy(
                             currentMode = completedMode ?: current.currentMode,
                             lastKnownMode = completedMode ?: current.lastKnownMode,
-                            status = if (current.status == "sending") "connected" else current.status,
+                            status = if (current.status == "sending") {
+                                if (ready) "connected" else "connecting"
+                            } else current.status,
                         )
                     }
                 }

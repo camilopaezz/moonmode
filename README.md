@@ -19,6 +19,14 @@ After pairing the earbuds, connect in the app once and confirm the BLE endpoint.
 
 A tap connects to the saved endpoint, sends the mode command, then stops the short-lived Bluetooth foreground service. Rapid taps keep the latest pending mode while the current command finishes. Each command attempt times out after 30 seconds.
 
+For a cold widget connection, the requested mode is sent as soon as service
+discovery completes, before notification subscriptions and battery queries.
+Bluetooth connection and service discovery still take time. Commands arriving
+during notification setup run ahead of queued subscriptions and reads while
+preserving earlier mode-command order. An existing ready session uses the same
+serialized write queue. Notification setup and the battery refresh finish before
+the service releases the connection.
+
 The widget footer shows the selected paired device. The highlighted mode is the last confirmed setting, not a live reading. Tap the title to open the app. If Bluetooth permissions or setup are missing, the mode buttons open the app instead. A failed command leaves a message asking you to open the app; endpoint discovery and confirmation stay in the app.
 
 Left and right battery percentages appear beside the paired device when known,
