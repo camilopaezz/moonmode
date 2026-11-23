@@ -14,17 +14,15 @@
     android:paddingTop="@dimen/st2_widget_padding_v"
     android:paddingBottom="@dimen/st2_widget_padding_v">
 
-    <!-- At 96dp: 12dp outer padding + 54dp track + 2dp gap + 28dp caption.
-         The track's 3dp inset leaves each equal-width target at least 48dp high. -->
+    <!-- At 96dp: 12dp outer padding + 54dp of pill segments + 2dp gap + 28dp caption.
+         Each equal-width target stays at least 48dp high. -->
     <LinearLayout
         android:id="@+id/st2_widget_buttons"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_alignParentTop="true"
         android:layout_above="@+id/st2_widget_device_status"
-        android:minHeight="54dp"
-        android:padding="3dp"
-        android:background="@drawable/st2_widget_track"
+        android:minHeight="48dp"
         android:baselineAligned="false"
         android:orientation="horizontal">
 
@@ -54,7 +52,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="16dp"
                 android:importantForAccessibility="no"
-                android:fontFamily="sans-serif-medium"
+                android:fontFamily="@font/adwaita_sans_medium"
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
@@ -69,6 +67,8 @@
 
         <LinearLayout
             android:id="@+id/st2_widget_mode_anc"
+            android:layout_marginStart="@dimen/st2_widget_segment_gap"
+            android:layout_marginEnd="@dimen/st2_widget_segment_gap"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -93,7 +93,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="16dp"
                 android:importantForAccessibility="no"
-                android:fontFamily="sans-serif-medium"
+                android:fontFamily="@font/adwaita_sans_medium"
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
@@ -132,7 +132,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="16dp"
                 android:importantForAccessibility="no"
-                android:fontFamily="sans-serif-medium"
+                android:fontFamily="@font/adwaita_sans_medium"
                 android:gravity="center"
                 android:includeFontPadding="false"
                 android:maxLines="1"
@@ -153,7 +153,7 @@
         android:layout_height="28dp"
         android:layout_alignParentBottom="true"
         android:layout_marginTop="2dp"
-        android:fontFamily="sans-serif"
+        android:fontFamily="@font/adwaita_sans_regular"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"

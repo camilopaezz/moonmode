@@ -5,6 +5,9 @@ ANC mode control for SPACE TRAVEL 2 over GAIA V3 BLE.
 [Battery protocol research](docs/battery-protocol.md) records the official app's
 GAIA commands and device validation for battery readings.
 
+[Android UI](docs/android-design.md) describes the glass control layer, screen
+behaviour, design overrides, and the debug sample screens for visual review.
+
 ## Build
 
 Requires **JDK 17** and the Android SDK with platform 36. Set `JAVA_HOME` to your JDK 17 installation and set the SDK path in `local.properties` or `ANDROID_HOME`.
