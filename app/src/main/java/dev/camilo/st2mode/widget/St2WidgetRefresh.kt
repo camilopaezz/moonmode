@@ -1,9 +1,6 @@
 package dev.camilo.st2mode.widget
 
-import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
-import android.bluetooth.BluetoothManager
-import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Intent
 import androidx.core.content.ContextCompat
@@ -54,7 +51,7 @@ class St2WidgetRefreshWorker(context: Context, params: WorkerParameters) : Corou
         // Redraw cached values even when a read is unavailable, so expired battery data disappears.
         St2ModeWidget.updateAll(context, preserveStatus = true)
         val target = St2ModeWidget.targetOrNull(context) ?: return@withContext Result.success()
-        if (!audioConnected(context, target.bondedAddress)) return@withContext Result.success()
+        if (!isAudioConnected(context, target.bondedAddress)) return@withContext Result.success()
         val client = St2Session.acquireRefreshOrNull(context) ?: return@withContext Result.success()
         var openedConnection = false
         try {
@@ -97,25 +94,6 @@ class St2WidgetRefreshWorker(context: Context, params: WorkerParameters) : Corou
         }
         Result.success()
     }
-
-    @SuppressLint("MissingPermission")
-    private suspend fun audioConnected(context: Context, address: String): Boolean =
-        withTimeoutOrNull(2_000L) {
-            val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
-                ?: return@withTimeoutOrNull false
-            awaitProfileConnection<BluetoothProfile>(
-                request = { connected, disconnected ->
-                    adapter.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
-                        override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) = connected(proxy)
-                        override fun onServiceDisconnected(profile: Int) = disconnected()
-                    }, BluetoothProfile.A2DP)
-                },
-                isConnected = { proxy ->
-                    proxy.connectedDevices.any { it.address.equals(address, ignoreCase = true) }
-                },
-                close = { proxy -> adapter.closeProfileProxy(BluetoothProfile.A2DP, proxy) },
-            )
-        } ?: false
 }
 
 /** Start scheduling for widgets that were added before this feature was installed. */
