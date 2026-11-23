@@ -91,6 +91,10 @@ import dev.camilo.st2mode.ui.theme.MoonModeBrandStyle
 import dev.camilo.st2mode.widget.St2ModeWidget
 import dev.camilo.st2mode.widget.St2WidgetRefresh
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+private const val DIRECT_SEND_TIMEOUT_MS = 10_000L
+private const val BATTERY_TIMEOUT_MS = 2_000L
 
 class MainActivity : ComponentActivity() {
     private lateinit var client: St2GattClient
@@ -202,8 +206,12 @@ class MainActivity : ComponentActivity() {
         directSending = true
         lifecycleScope.launch {
             try {
-                if (AudioLinkModeSender.send(this@MainActivity, mode, address)) {
-                    AudioLinkModeSender.refreshBattery(this@MainActivity)
+                // A timeout may follow a written SET, so it never falls back to BLE.
+                val sent = withTimeoutOrNull(DIRECT_SEND_TIMEOUT_MS) {
+                    AudioLinkModeSender.send(this@MainActivity, mode, address)
+                } ?: return@launch
+                if (sent) {
+                    withTimeoutOrNull(BATTERY_TIMEOUT_MS) { AudioLinkModeSender.refreshBattery(this@MainActivity) }
                 } else if (St2ModeWidget.targetOrNull(this@MainActivity)?.bondedAddress == address) {
                     client.connectAndSetModeAndAwait(mode, address)
                 } else {

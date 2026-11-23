@@ -80,13 +80,17 @@ class St2WidgetCommandService : Service() {
         requests.trySend(mode)
         if (commandJob?.isActive != true) {
             commandJob = scope.launch {
+                var drained = false
                 try {
-                    while (true) {
-                        val next = requests.tryReceive().getOrNull() ?: break
-                        sendMode(next)
+                    while (!drained) {
+                        // Release suspends, so recheck for taps that arrived meanwhile.
+                        val next = requests.tryReceive().getOrNull()
+                            ?: run { AudioLinkModeSender.release(); requests.tryReceive().getOrNull() }
+                        if (next == null) drained = true else sendMode(next)
                     }
                 } finally {
-                    AudioLinkModeSender.release()
+                    // Normal exit already released without a suspension before stopping.
+                    if (!drained) AudioLinkModeSender.release()
                     commandJob = null
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelfResult(lastStartId)

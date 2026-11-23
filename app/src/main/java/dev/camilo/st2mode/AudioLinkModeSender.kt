@@ -78,9 +78,7 @@ internal object AudioLinkModeSender {
     /** Closes the socket after any command in progress, so that command is not cut off. */
     suspend fun release() = withContext(NonCancellable) { lock.withLock { close() } }
 
-    /** Closes now. Only for teardown, where an in-progress command is abandoned anyway. */
-    fun close() {
-        // Closing from outside the lock unblocks a waiting socket call.
+    private fun close() {
         link?.close()
         link = null
         linkAddress = null
