@@ -13,6 +13,14 @@ Requires **JDK 17** and the Android SDK with platform 36. Set `JAVA_HOME` to you
 ./gradlew :app:assembleDebug
 ```
 
+## Changing mode in the app
+
+The mode buttons work without tapping Connect. When the earbuds are connected for
+audio, a tap sends the mode over the audio link in about half a second. The button
+shows the mode as sent, not as a live reading, until a BLE connection reads it.
+Otherwise the tap starts a BLE connection and sends the mode once it is ready, or
+starts endpoint setup if none is confirmed yet. Connect still gives live readings.
+
 ## Home-screen widget
 
 After pairing the earbuds, connect in the app once and confirm the BLE endpoint. Add **MoonMode** from your launcher's widget picker. The widget has Off, ANC, and Transparency buttons and uses the device selected in the app.

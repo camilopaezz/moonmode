@@ -84,10 +84,7 @@ internal object GaiaClassic {
  * One RFCOMM GAIA session. Callers issue one request at a time; requests are
  * also serialized internally. Cancelling any call closes the socket.
  */
-internal class GaiaRfcommLink private constructor(
-    private val socket: BluetoothSocket,
-    private val trace: (String) -> Unit,
-) {
+internal class GaiaRfcommLink private constructor(private val socket: BluetoothSocket) {
     private val packets = LinkedBlockingQueue<ByteArray>()
     private val requests = Mutex()
     @Volatile private var closed = false
@@ -119,7 +116,6 @@ internal class GaiaRfcommLink private constructor(
      */
     suspend fun sendMode(mode: AncMode) = requests.withLock {
         write(Gaia.setMode(mode.setCode))
-        trace("rfcomm-set-written ${mode.label}")
     }
 
     suspend fun readBattery(timeoutMs: Long = REPLY_TIMEOUT_MS): BatteryLevels? = requests.withLock {
@@ -173,7 +169,7 @@ internal class GaiaRfcommLink private constructor(
 
         /** Opens an SPP socket on the existing Classic link, or returns null. */
         @SuppressLint("MissingPermission")
-        suspend fun open(device: BluetoothDevice, trace: (String) -> Unit = {}): GaiaRfcommLink? {
+        suspend fun open(device: BluetoothDevice): GaiaRfcommLink? {
             val socket = try {
                 device.createRfcommSocketToServiceRecord(GaiaClassic.SPP_UUID)
             } catch (_: IOException) {
@@ -181,7 +177,7 @@ internal class GaiaRfcommLink private constructor(
             }
             return try {
                 cancellableSocketCall(socket) { socket.connect() }
-                GaiaRfcommLink(socket, trace).also { trace("rfcomm-connected") }
+                GaiaRfcommLink(socket)
             } catch (_: IOException) {
                 try { socket.close() } catch (_: IOException) {}
                 null
