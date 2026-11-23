@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Check a visible Android app/widget track against the system Material You palette.
+"""Check a visible widget panel against the system Material You palette.
 
 Requires adb and Pillow. Keep the target visible in the requested appearance.
-Choose a point inside the track background, away from icons and selected cells.
+Choose a point inside the panel background, away from icons, text, the rim, and selected cells.
 
 Examples:
     python3 scripts/check-material-you.py --serial SERIAL --appearance dark --point 86 2220
@@ -39,10 +39,10 @@ def main():
 
     sdk = int(read('shell', 'getprop', 'ro.build.version.sdk'))
     if sdk >= 34:
-        resource = 'android:color/system_surface_variant_' + args.appearance
+        resource = 'android:color/system_surface_container_high_' + args.appearance
     else:
-        tone = '700' if args.appearance == 'dark' else '100'
-        resource = 'android:color/system_neutral2_' + tone
+        tone = '800' if args.appearance == 'dark' else '100'
+        resource = 'android:color/system_neutral1_' + tone
     color = read('shell', 'cmd', 'overlay', 'lookup', 'android', resource)
     expected = tuple(int(color[-6:][i:i + 2], 16) for i in (0, 2, 4))
     source = args.image if args.image else io.BytesIO(subprocess.check_output(
@@ -57,10 +57,10 @@ def main():
     def hex_color(value):
         return '#' + ''.join(f'{channel:02x}' for channel in value)
 
-    print(f'Control track at {point}: {hex_color(actual)}')
-    print(f'Material You surface variant: {hex_color(expected)}')
+    print(f'Widget panel at {point}: {hex_color(actual)}')
+    print(f'Material You surface container high: {hex_color(expected)}')
     passed = actual == expected
-    print('PASS: controls use the system palette' if passed else 'FAIL: controls do not use the system palette')
+    print('PASS: the widget uses the system palette' if passed else 'FAIL: the widget does not use the system palette')
     return 0 if passed else 1
 
 
