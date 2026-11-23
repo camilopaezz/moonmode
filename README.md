@@ -17,7 +17,14 @@ Requires **JDK 17** and the Android SDK with platform 36. Set `JAVA_HOME` to you
 
 After pairing the earbuds, connect in the app once and confirm the BLE endpoint. Add **MoonMode** from your launcher's widget picker. The widget has Off, ANC, and Transparency buttons and uses the device selected in the app.
 
-A tap connects to the saved endpoint, sends the mode command, then stops the short-lived Bluetooth foreground service. Rapid taps keep the latest pending mode while the current command finishes. Each command attempt times out after 30 seconds.
+When the earbuds are connected for audio and no app BLE session is ready, a tap
+sends the mode over RFCOMM on the existing Classic Bluetooth link. This skips BLE
+connection and service discovery, so a cold tap takes about half a second instead
+of about 2 seconds. If the earbuds are not connected for audio, or the RFCOMM
+socket or write fails, the tap uses the BLE path below. See
+[RFCOMM transport](docs/rfcomm-transport.md).
+
+On the BLE path, a tap connects to the saved endpoint, sends the mode command, then stops the short-lived Bluetooth foreground service. Rapid taps keep the latest pending mode while the current command finishes. Each command attempt times out after 30 seconds.
 
 For a cold widget connection, the requested mode is sent as soon as service
 discovery completes, before notification subscriptions and battery queries.

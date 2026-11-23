@@ -612,6 +612,11 @@ class St2GattClient(private val context: Context) {
         }
     }
 
+    /** A mode confirmed over another transport; the caller has already saved it. */
+    fun recordConfirmedMode(mode: AncMode) {
+        hop { _state.update { it.copy(lastKnownMode = mode) } }
+    }
+
     fun setMode(mode: AncMode) = enqueueMode(mode, null)
 
     /** Wait for this command's write callback, not a cached mode or another writer's result. */

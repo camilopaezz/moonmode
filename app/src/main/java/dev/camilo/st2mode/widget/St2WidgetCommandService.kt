@@ -5,16 +5,23 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.bluetooth.BluetoothManager
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
+import android.util.Log
 import dev.camilo.st2mode.MainActivity
 import dev.camilo.st2mode.SessionOwner
+import dev.camilo.st2mode.St2SelectionStore
 import dev.camilo.st2mode.St2Session
 import dev.camilo.st2mode.decodeWidgetMode
 import dev.camilo.st2mode.ble.AncMode
+import dev.camilo.st2mode.ble.GaiaRfcommLink
 import dev.camilo.st2mode.ble.St2GattClient
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,12 +33,20 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Short, user-triggered commands only. The activity remains the sole polling owner. */
+/**
+ * Short, user-triggered commands only. The activity remains the sole polling owner.
+ *
+ * A ready BLE session is used as is. Otherwise, when the earbuds are connected for
+ * audio, the command goes over RFCOMM on that Classic link, which skips BLE
+ * connection and GATT discovery. Any RFCOMM failure falls back to the BLE path.
+ */
 class St2WidgetCommandService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val requests = Channel<AncMode>(Channel.CONFLATED)
     private var commandJob: Job? = null
     private var client: St2GattClient? = null
+    private var rfcomm: GaiaRfcommLink? = null
+    private var rfcommAddress: String? = null
     private var lastStartId = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -76,6 +91,7 @@ class St2WidgetCommandService : Service() {
                         sendMode(next)
                     }
                 } finally {
+                    closeRfcomm()
                     commandJob = null
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelfResult(lastStartId)
@@ -85,38 +101,124 @@ class St2WidgetCommandService : Service() {
         return START_NOT_STICKY
     }
 
+    private enum class Outcome { Rfcomm, Ble, Failed }
+
     private suspend fun sendMode(mode: AncMode) {
         St2ModeWidget.updateAll(this, "Changing to ${mode.label}…", replaceCaption = true)
         startForeground(NOTIFICATION_ID, notification(mode), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        val started = SystemClock.elapsedRealtime()
         val result = try {
             withTimeoutOrNull(COMMAND_TIMEOUT_MS) {
-                val target = St2ModeWidget.targetOrNull(this@St2WidgetCommandService) ?: return@withTimeoutOrNull false
-                val shared = client ?: St2Session.acquire(this@St2WidgetCommandService, SessionOwner.WidgetCommand).also { client = it }
-                shared.refreshBonded()
-                // Never replace an activity's selection or start endpoint discovery from the widget.
-                if (shared.state.value.selectedAddress != target.bondedAddress) return@withTimeoutOrNull false
-                if (!shared.connectAndSetModeAndAwait(mode, target.bondedAddress)) return@withTimeoutOrNull false
-                val state = shared.state.first {
-                    it.ready || it.status == "error" || it.status == "select endpoint" ||
-                        it.status == "disconnected" ||
-                        it.selectedAddress != target.bondedAddress
-                }
-                if (!state.ready || state.selectedAddress != target.bondedAddress) return@withTimeoutOrNull false
-                shared.refreshBatteryAndAwait()
-                true
+                val target = St2ModeWidget.targetOrNull(this@St2WidgetCommandService)
+                    ?: return@withTimeoutOrNull Outcome.Failed
+                if (sendOverRfcomm(mode, target.bondedAddress)) return@withTimeoutOrNull Outcome.Rfcomm
+                if (sendOverBle(mode, target.bondedAddress)) Outcome.Ble else Outcome.Failed
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: SecurityException) {
-            false
+            Outcome.Failed
         } catch (_: IllegalStateException) {
-            false
+            Outcome.Failed
         }
+        logLatency("widget-${result?.name ?: "Timeout"}-${mode.label}", started)
         St2ModeWidget.updateAll(this, when (result) {
-            true -> null
+            Outcome.Rfcomm, Outcome.Ble -> null
             null -> "Timed out. Open app to check"
-            false -> "Couldn't change mode. Open app"
+            Outcome.Failed -> "Couldn't change mode. Open app"
         })
+        // The mode is already shown; battery failures never turn this into an error.
+        if (result == Outcome.Rfcomm) refreshBatteryOverRfcomm()
+    }
+
+    /** False means "use BLE": a ready session exists, audio is down, or nothing was written. */
+    private suspend fun sendOverRfcomm(mode: AncMode, bondedAddress: String): Boolean {
+        val shared = St2Session.clientOrNull()?.state?.value
+        if (shared != null && shared.ready && shared.selectedAddress == bondedAddress) {
+            debugLog("rfcomm-skip ble-ready")
+            return false
+        }
+        val link = rfcommLinkOrNull(bondedAddress) ?: return false
+        try {
+            link.sendMode(mode)
+        } catch (_: IOException) {
+            // Nothing reached the earbuds, so the BLE fallback cannot apply it twice.
+            debugLog("rfcomm-fallback write-failed")
+            closeRfcomm()
+            return false
+        }
+        // Only record the mode for the device that is still selected.
+        val store = St2SelectionStore(this)
+        if (store.loadSelectedAddress().equals(bondedAddress, ignoreCase = true)) {
+            store.saveLastKnownMode(mode)
+            St2Session.clientOrNull()?.recordConfirmedMode(mode)
+        }
+        return true
+    }
+
+    private suspend fun rfcommLinkOrNull(bondedAddress: String): GaiaRfcommLink? {
+        rfcomm?.let { if (it.isOpen && rfcommAddress == bondedAddress) return it }
+        closeRfcomm()
+        debugLog("rfcomm-audio-check")
+        if (!isAudioConnected(this, bondedAddress)) {
+            debugLog("rfcomm-skip audio-disconnected")
+            return null
+        }
+        val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: return null
+        val link = GaiaRfcommLink.open(adapter.getRemoteDevice(bondedAddress), ::debugLog) ?: run {
+            debugLog("rfcomm-fallback connect-failed")
+            return null
+        }
+        rfcomm = link
+        rfcommAddress = bondedAddress
+        return link
+    }
+
+    private suspend fun refreshBatteryOverRfcomm() {
+        val link = rfcomm ?: return
+        val address = rfcommAddress ?: return
+        val levels = try {
+            link.readBattery()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        } ?: return
+        val store = St2SelectionStore(this)
+        if (!store.loadSelectedAddress().equals(address, ignoreCase = true)) return
+        store.saveBatteryLevels(address, levels)
+        St2ModeWidget.updateAll(this, preserveStatus = true)
+    }
+
+    private fun closeRfcomm() {
+        rfcomm?.close()
+        rfcomm = null
+        rfcommAddress = null
+    }
+
+    private suspend fun sendOverBle(mode: AncMode, bondedAddress: String): Boolean {
+        val shared = client ?: St2Session.acquire(this, SessionOwner.WidgetCommand).also { client = it }
+        shared.refreshBonded()
+        // Never replace an activity's selection or start endpoint discovery from the widget.
+        if (shared.state.value.selectedAddress != bondedAddress) return false
+        if (!shared.connectAndSetModeAndAwait(mode, bondedAddress)) return false
+        val state = shared.state.first {
+            it.ready || it.status == "error" || it.status == "select endpoint" ||
+                it.status == "disconnected" ||
+                it.selectedAddress != bondedAddress
+        }
+        if (!state.ready || state.selectedAddress != bondedAddress) return false
+        shared.refreshBatteryAndAwait()
+        return true
+    }
+
+    private fun logLatency(stage: String, startedMs: Long) =
+        debugLog("$stage elapsedMs=${SystemClock.elapsedRealtime() - startedMs}")
+
+    private fun debugLog(message: String) {
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            Log.d("st2-latency", "$message t=${SystemClock.elapsedRealtime()}")
+        }
     }
 
     private fun notification(mode: AncMode?): Notification {
@@ -141,6 +243,7 @@ class St2WidgetCommandService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        closeRfcomm()
         requests.close()
         if (client != null) {
             St2Session.release(SessionOwner.WidgetCommand)
