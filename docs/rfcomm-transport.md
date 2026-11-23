@@ -48,6 +48,17 @@ connect is the whole cost. BLE rows start at `openGatt`, and their total
 includes notification setup and the battery read. A read-only GET after the ANC
 run reported ANC.
 
+## App
+
+The app's mode buttons use the same sender when no BLE session is ready. Both
+the app and the widget share one socket, serialized by a lock, and close it when
+the widget service finishes or the activity pauses. In a check on the same phone,
+an app tap opened the socket in 709 ms, a second tap reused it, and a later BLE
+connection read the mode the app had sent.
+
+A GET made up to 1.5 seconds or more after an RFCOMM SET still reports the previous
+mode, so a BLE reading taken right after a direct change can briefly lag.
+
 ## Not covered
 
 - Earbuds that are not connected for audio use the BLE path.

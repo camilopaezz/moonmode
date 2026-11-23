@@ -32,6 +32,9 @@
     <string name="live_mode">%1$s, live mode</string>
     <string name="cached_mode">Last known: %1$s, not live</string>
     <string name="live_selection">Live mode</string>
+    <string name="sent_not_live">Sent over the audio connection, not live</string>
+    <string name="sent_mode">%1$s, sent, not live</string>
+    <string name="sent_selection">Sent</string>
     <string name="back">Back</string>
     <string name="manage_earbuds">Manage earbuds</string>
     <string name="settings_no_earbuds">No paired earbuds found. Pair your earbuds in Android Bluetooth settings, then return here.</string>

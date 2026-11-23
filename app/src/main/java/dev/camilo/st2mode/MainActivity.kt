@@ -78,6 +78,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
 import dev.camilo.st2mode.ble.AncMode
 import dev.camilo.st2mode.ble.ClientState
 import dev.camilo.st2mode.ble.St2GattClient
@@ -89,12 +90,14 @@ import dev.camilo.st2mode.ui.theme.St2ModeTheme
 import dev.camilo.st2mode.ui.theme.MoonModeBrandStyle
 import dev.camilo.st2mode.widget.St2ModeWidget
 import dev.camilo.st2mode.widget.St2WidgetRefresh
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var client: St2GattClient
     private var sessionHeld = false
     private var foregroundHeld = false
     private var bluetoothAllowed by mutableStateOf(false)
+    private var directSending by mutableStateOf(false)
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -172,10 +175,55 @@ class MainActivity : ComponentActivity() {
                     },
                     onDisconnect = client::disconnect,
                     onEndpoint = client::confirmEndpoint,
-                    onMode = client::setMode,
+                    onMode = ::changeMode,
+                    directSending = directSending,
                 )
             }
         }
+    }
+
+    /**
+     * A ready BLE session sends directly. Otherwise try the audio link, which needs
+     * no Connect, then fall back to BLE: with a confirmed endpoint the mode goes out
+     * right after discovery; without one, Connect starts endpoint setup.
+     */
+    private fun changeMode(mode: AncMode) {
+        val state = client.state.value
+        if (state.ready) {
+            client.setMode(mode)
+            return
+        }
+        if (!client.hasPermissions()) {
+            requestBluetoothPermissions()
+            return
+        }
+        val address = state.selectedAddress ?: return
+        if (directSending) return
+        directSending = true
+        lifecycleScope.launch {
+            try {
+                if (AudioLinkModeSender.send(this@MainActivity, mode, address)) {
+                    AudioLinkModeSender.refreshBattery(this@MainActivity)
+                } else if (St2ModeWidget.targetOrNull(this@MainActivity)?.bondedAddress == address) {
+                    client.connectAndSetModeAndAwait(mode, address)
+                } else {
+                    client.connect()
+                }
+            } catch (_: SecurityException) {
+                client.refreshBonded()
+            } finally {
+                directSending = false
+            }
+        }
+    }
+
+    private fun requestBluetoothPermissions() {
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN,
+            ),
+        )
     }
 
     override fun onResume() {
@@ -197,6 +245,7 @@ class MainActivity : ComponentActivity() {
             foregroundHeld = false
         }
         if (::client.isInitialized) client.setPollingEnabled(false)
+        lifecycleScope.launch { AudioLinkModeSender.release() }
         St2ModeWidget.updateAll(this)
         super.onPause()
     }
@@ -219,8 +268,9 @@ private fun St2Screen(
     onDisconnect: () -> Unit,
     onEndpoint: (String) -> Unit,
     onMode: (AncMode) -> Unit,
+    directSending: Boolean,
 ) {
-    val presentation = modePresentation(state)
+    val presentation = modePresentation(state, directSending)
     val canConnect = state.status == "disconnected" || state.status == "error"
     val needsSetup = state.status == "select endpoint"
     val hasError = state.errorMessage != null
@@ -275,7 +325,8 @@ private fun St2Screen(
                         disconnected = canConnect,
                     )
                     Text(
-                        text = if (hasError) stringResource(R.string.disconnected)
+                        text = if (directSending) stringResource(R.string.changing_mode)
+                            else if (hasError) stringResource(R.string.disconnected)
                             else connectionStatus(state),
                         style = MaterialTheme.typography.bodyMedium,
                         color = statusColor,
@@ -460,6 +511,7 @@ private fun connectionStatus(state: ClientState): String = stringResource(when {
 @Composable
 private fun ModeSign(presentation: ModePresentation, ready: Boolean) {
     val caption = when {
+        presentation.sentMode != null && !presentation.isLive -> R.string.sent_not_live
         presentation.displayedMode != null && !presentation.isLive -> R.string.last_known_not_live
         presentation.displayedMode == null && ready -> R.string.waiting_for_reading
         presentation.displayedMode == null -> R.string.connect_for_reading
@@ -467,6 +519,7 @@ private fun ModeSign(presentation: ModePresentation, ready: Boolean) {
     }
     val label = presentation.displayedMode?.label ?: stringResource(R.string.no_reading)
     val description = if (presentation.isLive) stringResource(R.string.live_mode, label)
+        else if (presentation.sentMode != null) stringResource(R.string.sent_mode, label)
         else if (presentation.displayedMode != null) stringResource(R.string.cached_mode, label)
         else stringResource(R.string.no_reading)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -534,14 +587,16 @@ private fun ModeChooser(presentation: ModePresentation, onMode: (AncMode) -> Uni
                         .padding(3.dp).height(IntrinsicSize.Min),
                 ) {
                     widgetModes().forEach { mode ->
-                        val selected = presentation.liveMode == mode
+                        val selected = presentation.selectedMode == mode
                         Surface(
                             color = if (selected) selectedColor else trackColor,
                             contentColor = if (selected) onSelectedColor else onSurfaceColor,
                             shape = RoundedCornerShape(9.dp),
                             modifier = Modifier.weight(1f).fillMaxHeight(),
                         ) {
-                            val liveDescription = stringResource(R.string.live_selection)
+                            val selectionDescription = stringResource(
+                                if (presentation.isLive) R.string.live_selection else R.string.sent_selection,
+                            )
                             Column(
                                 modifier = Modifier
                                     .selectable(
@@ -550,7 +605,7 @@ private fun ModeChooser(presentation: ModePresentation, onMode: (AncMode) -> Uni
                                         role = Role.RadioButton,
                                         onClick = { onMode(mode) },
                                     )
-                                    .semantics { if (selected) stateDescription = liveDescription }
+                                    .semantics { if (selected) stateDescription = selectionDescription }
                                     .heightIn(min = 96.dp)
                                     .padding(horizontal = 4.dp, vertical = 14.dp)
                                     .alpha(if (presentation.controlsEnabled || presentation.changing) 1f else 0.6f),

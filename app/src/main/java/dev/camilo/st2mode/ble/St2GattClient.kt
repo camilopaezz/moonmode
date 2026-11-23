@@ -263,6 +263,8 @@ data class ClientState(
     val selectedAddress: String? = null,
     val endpoints: List<BleEndpoint> = emptyList(),
     val ready: Boolean = false,
+    /** Mode written over the audio link since the last BLE reading; never a live reading. */
+    val directMode: AncMode? = null,
 )
 
 class St2GattClient(private val context: Context) {
@@ -441,6 +443,7 @@ class St2GattClient(private val context: Context) {
                             errorMessage = null,
                             currentMode = null,
                             lastKnownMode = null,
+                            directMode = null,
                             ready = false,
                             endpoints = emptyList(),
                         )
@@ -612,9 +615,9 @@ class St2GattClient(private val context: Context) {
         }
     }
 
-    /** A mode confirmed over another transport; the caller has already saved it. */
-    fun recordConfirmedMode(mode: AncMode) {
-        hop { _state.update { it.copy(lastKnownMode = mode) } }
+    /** A mode written over the audio link; the caller has already saved it. */
+    fun recordDirectMode(mode: AncMode) {
+        hop { _state.update { it.copy(lastKnownMode = mode, directMode = mode) } }
     }
 
     fun setMode(mode: AncMode) = enqueueMode(mode, null)
@@ -1039,6 +1042,7 @@ class St2GattClient(private val context: Context) {
                 it.copy(
                     currentMode = mode,
                     lastKnownMode = mode,
+                    directMode = null,
                     status = if (it.status == "error") it.status else "connected",
                     errorMessage = if (it.status == "error") it.errorMessage else null,
                 )
@@ -1222,6 +1226,7 @@ class St2GattClient(private val context: Context) {
                         current.copy(
                             currentMode = completedMode ?: current.currentMode,
                             lastKnownMode = completedMode ?: current.lastKnownMode,
+                            directMode = if (completedMode != null) null else current.directMode,
                             status = if (current.status == "sending") {
                                 if (ready) "connected" else "connecting"
                             } else current.status,

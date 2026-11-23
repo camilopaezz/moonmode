@@ -87,4 +87,45 @@ class ModePresentationTest {
         assertFalse(confirmed.changing)
         assertTrue(confirmed.controlsEnabled)
     }
+
+    @Test
+    fun idleSelectedDeviceCanChangeModeWithoutBle() {
+        for (status in listOf("disconnected", "error")) {
+            val view = modePresentation(ClientState(status = status, selectedAddress = "AA"))
+            assertTrue(status, view.controlsEnabled)
+            assertNull(view.selectedMode)
+        }
+        for (status in listOf("scanning", "connecting", "select endpoint")) {
+            val view = modePresentation(ClientState(status = status, selectedAddress = "AA"))
+            assertFalse(status, view.controlsEnabled)
+        }
+    }
+
+    @Test
+    fun directSendDisablesControlsUntilItSettles() {
+        val view = modePresentation(ClientState(selectedAddress = "AA"), directSending = true)
+        assertTrue(view.changing)
+        assertFalse(view.controlsEnabled)
+    }
+
+    @Test
+    fun sentModeSelectsItsButtonButIsNeverLive() {
+        val view = modePresentation(ClientState(
+            selectedAddress = "AA", lastKnownMode = AncMode.Anc, directMode = AncMode.Anc,
+        ))
+        assertEquals(AncMode.Anc, view.displayedMode)
+        assertEquals(AncMode.Anc, view.selectedMode)
+        assertNull(view.liveMode)
+        assertFalse(view.isLive)
+    }
+
+    @Test
+    fun liveReadingReplacesASentMode() {
+        val view = modePresentation(ClientState(
+            status = "connected", ready = true, selectedAddress = "AA",
+            currentMode = AncMode.Off, directMode = AncMode.Anc,
+        ))
+        assertEquals(AncMode.Off, view.selectedMode)
+        assertNull(view.sentMode)
+    }
 }
