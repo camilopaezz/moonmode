@@ -160,8 +160,9 @@ internal class GaiaRfcommLink private constructor(
         if (closed) throw IOException("RFCOMM closed")
         val bytes = GaiaClassic.frame(ble)
         cancellableSocketCall(socket) {
+            // RFCOMM output is unbuffered; a flush failure after a completed write
+            // would wrongly report the SET as unsent.
             socket.outputStream.write(bytes)
-            socket.outputStream.flush()
         }
     }
 

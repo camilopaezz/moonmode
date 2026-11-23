@@ -128,7 +128,7 @@ class St2WidgetCommandService : Service() {
             Outcome.Failed -> "Couldn't change mode. Open app"
         })
         // The mode is already shown; battery failures never turn this into an error.
-        if (result == Outcome.Rfcomm) refreshBatteryOverRfcomm()
+        if (result == Outcome.Rfcomm) withTimeoutOrNull(BATTERY_TIMEOUT_MS) { refreshBatteryOverRfcomm() }
     }
 
     /** False means "use BLE": a ready session exists, audio is down, or nothing was written. */
@@ -258,5 +258,6 @@ class St2WidgetCommandService : Service() {
         private const val CHANNEL_ID = "widget_mode_commands"
         private const val NOTIFICATION_ID = 1
         private const val COMMAND_TIMEOUT_MS = 30_000L
+        private const val BATTERY_TIMEOUT_MS = 2_000L
     }
 }
