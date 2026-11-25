@@ -1,26 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Control layer: one glass lens over a crescent moon. Vectors cannot
+         blur, so stacked translucent crescents of varying width soften its edge. -->
+    <path android:fillColor="#40D9CCFF" android:pathData="M40.88,39.71 A19.40,19.40 0 0,0 59.65,72.56 A22.60,22.60 0 0,1 40.88,39.71 Z" />
+    <path android:fillColor="#40D9CCFF" android:pathData="M43.63,36.73 A20.14,20.14 0 0,0 63.61,71.70 A21.86,21.86 0 0,1 43.63,36.73 Z" />
+    <path android:fillColor="#40D9CCFF" android:pathData="M46.76,34.41 A20.89,20.89 0 1,0 67.20,70.18 A21.11,21.11 0 0,1 46.76,34.41 Z" />
+    <path android:fillColor="#40D9CCFF" android:pathData="M50.24,32.70 A21.63,21.63 0 1,0 70.44,68.05 A20.37,20.37 0 0,1 50.24,32.70 Z" />
+    <path android:fillColor="#40D9CCFF" android:pathData="M54.09,31.63 A22.37,22.37 0 1,0 73.32,65.28 A19.63,19.63 0 1,1 54.09,31.63 Z" />
+    <path android:fillColor="#40D9CCFF" android:pathData="M58.36,31.30 A23.11,23.11 0 1,0 75.77,61.77 A18.89,18.89 0 1,1 58.36,31.30 Z" />
+    <path android:fillColor="#40D9CCFF" android:pathData="M63.21,31.99 A23.86,23.86 0 1,0 77.64,57.24 A18.14,18.14 0 1,1 63.21,31.99 Z" />
+    <path android:fillColor="#40D9CCFF" android:pathData="M69.18,34.64 A24.60,24.60 0 1,0 78.38,50.75 A17.40,17.40 0 1,1 69.18,34.64 Z" />
+    <!-- Tint: dark surfaceContainerHigh at 60 %. -->
+    <path android:fillColor="#99211E26" android:pathData="M54,28 a26,26 0,1 0,0,52 a26,26 0,1 0,0,-52 Z" />
+    <!-- Lit rim: highlight at the top, outlineVariant at the bottom. -->
+    <path android:strokeWidth="1" android:pathData="M54,28.5 a25.5,25.5 0,1 0,0,51 a25.5,25.5 0,1 0,0,-51 Z">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="54" android:startY="28" android:endX="54" android:endY="80">
+                <item android:offset="0" android:color="#CCFFFFFF" />
+                <item android:offset="0.5" android:color="#00FFFFFF" />
+                <item android:offset="1" android:color="#59B5B0BB" />
+            </gradient>
+        </aapt:attr>
+    </path>
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M38.6,27.8 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M38.6,35.5 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M38.6,43.2 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M38.6,50.9 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M38.6,58.6 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M38.6,66.3 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M38.6,74.0 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M69.4,27.8 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M69.4,35.5 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M69.4,43.2 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M69.4,50.9 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M69.4,58.6 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M69.4,66.3 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M69.4,74.0 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M46.3,35.5 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M54.0,43.2 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z
-            M61.7,35.5 a3.1,3.1 0,1 0,0,6.2 a3.1,3.1 0,1 0,0,-6.2 Z" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M42.16,39.22 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M61.87,39.22 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M42.16,44.14 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M61.87,44.14 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M42.16,49.07 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M61.87,49.07 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M42.16,54.00 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M61.87,54.00 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M42.16,58.93 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M61.87,58.93 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M42.16,63.86 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M61.87,63.86 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M42.16,68.78 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M61.87,68.78 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M47.09,44.14 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M52.02,49.07 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z
+            M56.94,44.14 a1.98,1.98 0,1 0,3.97,0 a1.98,1.98 0,1 0,-3.97,0 Z" />
 </vector>

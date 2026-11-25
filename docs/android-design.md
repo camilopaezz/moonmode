@@ -46,6 +46,10 @@ Android's animator duration scale governs all of these, so setting it to off rem
 
 Launcher widgets cannot blur, so the widget is the solid glass state: an opaque `surfaceContainerHigh` panel inside a 1 dp lit rim (highlight at the top, outline-variant at 25% at the bottom), with no shadow. The three modes are pill segments 4 dp apart, as in the app's dock. The last confirmed mode is a `secondaryContainer` pill. Labels use Adwaita Sans Medium and the caption uses Adwaita Sans Regular in `onSurfaceVariant`. Android 14+ uses the system's container roles; Android 12–13 uses the nearest system palette tones. Colors live in the `widget_colors.xml` resources. `scripts/check-material-you.py` compares the panel fill against the system palette.
 
+## Launcher icon
+
+The adaptive icon shows the two layers. The background layer is the content: a night sky that fades from the brand purple to near black. The foreground layer is one glass lens, 52 of 108 units across, holding the dot-matrix M from the wordmark. Behind the glass is a soft crescent moon, lit on its lower-left edge. Over it sits the dark `surfaceContainerHigh` tint at 60 %, and a 1 dp lit rim edges the lens. The themed (monochrome) layer is the M alone. `assets/icon.svg` is generated from the two drawables and previews them in a 24-unit rounded square.
+
 ## Overrides
 
 - **Brand wordmark**: keeps the Doto ExtraBold dot-matrix face at the system's 22/28 sp size, with 0 sp tracking, because negative tracking merges the dots. All other text uses Adwaita Sans.
@@ -53,6 +57,7 @@ Launcher widgets cannot blur, so the widget is the solid glass state: an opaque 
 - **Widget corners**: follow the launcher's `system_app_widget_background_radius` instead of the 32 dp panel corner, so the widget matches neighbouring widgets.
 - **Widget rim**: XML gradients cannot mix system colors, so the rim uses fixed translucent colors in `widget_colors.xml`.
 - **Predictive back preview**: follows Material's in-app back guidance (90 % scale, edge drift, 28 dp corners), which the glass system does not cover.
+- **Launcher icon colors**: launcher icons cannot read the color scheme, so the icon uses fixed brand tones from the dark fallback palette. Vector drawables cannot blur, so eight translucent crescents of varying width stand in for the blurred moon.
 - **Mode dock labels**: shrink from `labelLarge` down to 8 sp so the three labels fit on one line, matching the widget.
 
 ## Review
