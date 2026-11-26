@@ -12,8 +12,22 @@ android {
         applicationId = "dev.camilo.st2mode"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // Release CI passes these from the tag; local builds keep the defaults.
+        versionCode = providers.gradleProperty("moonmode.versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("moonmode.versionName").orNull ?: "1.0"
+    }
+
+    // Release signing comes from the environment so no key material lives in the repo.
+    val releaseKeystore = providers.environmentVariable("MOONMODE_KEYSTORE_PATH").orNull
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.environmentVariable("MOONMODE_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("MOONMODE_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("MOONMODE_KEY_PASSWORD").get()
+            }
+        }
     }
 
     buildTypes {
@@ -22,6 +36,9 @@ android {
         }
         release {
             isMinifyEnabled = false
+            if (releaseKeystore != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

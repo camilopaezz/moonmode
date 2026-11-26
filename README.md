@@ -95,6 +95,30 @@ GitHub Actions runs unit tests, Android lint, and a debug APK build on pushes to
 
 The CI APK uses a debug signing key. Installing it over a locally built APK may require uninstalling the local app first if their signing keys differ.
 
+## Releases
+
+Publishing a GitHub release runs `.github/workflows/release.yml`. It checks out the release tag, runs the unit tests, builds a signed release APK, and attaches `moonmode-<version>.apk` and its SHA-256 checksum to the release.
+
+The tag must be a semantic version such as `v1.2.3` (a `-beta1` style suffix is allowed). The workflow sets `versionName` to the tag without the `v` and `versionCode` to `major * 10000 + minor * 100 + patch`, so each release must have a higher version than the last.
+
+```sh
+git tag v1.0.0 && git push origin v1.0.0
+gh release create v1.0.0 --generate-notes
+```
+
+Signing needs four repository secrets. Create a keystore once and keep a backup: Android refuses updates signed with a different key.
+
+```sh
+keytool -genkeypair -v -keystore moonmode-release.jks -alias moonmode \
+  -keyalg RSA -keysize 4096 -validity 10000
+gh secret set MOONMODE_KEYSTORE_BASE64 < <(base64 -w0 moonmode-release.jks)
+gh secret set MOONMODE_KEYSTORE_PASSWORD
+gh secret set MOONMODE_KEY_ALIAS --body moonmode
+gh secret set MOONMODE_KEY_PASSWORD
+```
+
+Release APKs use a different key from debug APKs, so uninstall a debug build before installing a release one.
+
 ## Install
 
 ```sh
