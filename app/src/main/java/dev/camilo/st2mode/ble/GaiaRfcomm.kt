@@ -3,27 +3,22 @@ package dev.camilo.st2mode.ble
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
-import android.os.SystemClock
 import java.io.IOException
 import java.util.UUID
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * GAIA over RFCOMM, framed for Classic Bluetooth.
  *
  * Space Travel 2 serves GAIA on the standard SPP UUID while audio holds the
  * Classic link, so this skips BLE connection and GATT discovery. Verified on
- * 2026-11-22 (Xiaomi 21081111RG): socket ~250–530 ms, GET reply 64–176 ms.
- * Battery replies arrive in order after a SET, so the post-command battery read
- * also shows the SET reached the earbuds.
+ * Xiaomi 21081111RG: socket ~400–900 ms, GET reply 60–180 ms, and one socket
+ * stayed usable through 10 minutes of 2-second polling and long idle gaps.
  *
  * Frame: [FF][version][flags][payload length][vendor 2][command 2][payload][checksum?]
  * The body after the length byte(s) is identical to [Gaia.frame]. The earbuds
@@ -81,108 +76,88 @@ internal object GaiaClassic {
 }
 
 /**
- * One RFCOMM GAIA session. Callers issue one request at a time; requests are
- * also serialized internally. Cancelling any call closes the socket.
+ * One RFCOMM GAIA channel on the existing Classic link.
+ *
+ * It only moves frames: [write] reports whether the bytes left the phone, and
+ * [start] delivers every received frame in order, then [onClosed] once. Request
+ * matching, timeouts and polling live in [St2GattClient], shared with BLE.
+ *
+ * Space Travel 2 serves one SPP connection at a time. A second connection from
+ * another app, such as the official Moondrop app, drops this one, and opening
+ * this one while another app holds the channel fails within about half a second.
  */
-internal class GaiaRfcommLink private constructor(
-    private val socket: BluetoothSocket,
-    private val trace: (String) -> Unit,
-) {
-    private val packets = LinkedBlockingQueue<ByteArray>()
-    private val requests = Mutex()
+internal class GaiaRfcommLink private constructor(private val socket: BluetoothSocket) {
+    private val writer = Executors.newSingleThreadExecutor { Thread(it, "st2-rfcomm-tx").apply { isDaemon = true } }
+    private val closedReported = AtomicBoolean(false)
     @Volatile private var closed = false
 
-    private val reader = Thread({
-        val parser = GaiaClassic.Reader()
-        val buf = ByteArray(1024)
-        try {
-            val input = socket.inputStream
-            while (!closed) {
-                val n = input.read(buf)
-                if (n < 0) break
-                parser.feed(buf.copyOf(n)).forEach(packets::put)
+    /** Starts the reader. Callbacks run on the reader thread. */
+    fun start(onPacket: (ByteArray) -> Unit, onClosed: () -> Unit) {
+        Thread({
+            val parser = GaiaClassic.Reader()
+            val buf = ByteArray(1024)
+            try {
+                val input = socket.inputStream
+                while (!closed) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    parser.feed(buf.copyOf(n)).forEach(onPacket)
+                }
+            } catch (_: IOException) {
+            } finally {
+                closed = true
+                if (closedReported.compareAndSet(false, true)) onClosed()
             }
-        } catch (_: IOException) {
-        } finally {
-            closed = true
-            packets.put(CLOSED)
-        }
-    }, "st2-rfcomm-rx").apply { isDaemon = true; start() }
-
-    val isOpen: Boolean get() = !closed
+        }, "st2-rfcomm-rx").apply { isDaemon = true; start() }
+    }
 
     /**
-     * Writes one SET. The firmware sends no SET reply, and GET keeps reporting the
-     * previous mode for over 1.5 s while the transition plays, so a completed write
-     * is the success signal, as with the BLE write callback. Throws [IOException]
-     * when nothing could be written, which is the only case safe to retry elsewhere.
+     * Writes one BLE-style frame in order. [done] gets true once the bytes are
+     * written. RFCOMM output is unbuffered, so this matches a GATT write callback:
+     * delivery, not that the earbuds applied a SET. False means the write did not
+     * complete. A SET names an absolute mode, so if part of it did go out, repeating
+     * it on another transport sets the same mode again.
      */
-    suspend fun sendMode(mode: AncMode) = requests.withLock {
-        write(Gaia.setMode(mode.setCode))
-        trace("rfcomm-set-written ${mode.label}")
+    fun write(ble: ByteArray, done: (Boolean) -> Unit) {
+        val bytes = GaiaClassic.frame(ble)
+        try {
+            writer.execute {
+                val ok = !closed && runCatching { socket.outputStream.write(bytes) }.isSuccess
+                done(ok)
+            }
+        } catch (_: RejectedExecutionException) {
+            done(false)
+        }
     }
 
-    suspend fun readBattery(timeoutMs: Long = REPLY_TIMEOUT_MS): BatteryLevels? = requests.withLock {
-        val reply = request(Gaia.getBatteryLevels(), Gaia.GET_BATTERY_LEVELS_RESPONSE, timeoutMs)
-        reply?.let { decodeBatteryReport(it, System.currentTimeMillis()) }
-    }
-
+    /** Closing unblocks a pending read or write. [start]'s onClosed still runs once. */
     fun close() {
         closed = true
+        writer.shutdown()
         try {
             socket.close()
         } catch (_: IOException) {
         }
     }
 
-    /** Waits for [response] or its GAIA error; other packets are unsolicited and dropped. */
-    private suspend fun request(frame: ByteArray, response: Int, timeoutMs: Long): ByteArray? {
-        packets.removeIf { it !== CLOSED }
-        write(frame)
-        val error = response or ERROR_TYPE_BITS
-        val deadline = SystemClock.elapsedRealtime() + timeoutMs
-        while (true) {
-            val left = deadline - SystemClock.elapsedRealtime()
-            if (left <= 0) return null
-            val packet = runInterruptible(Dispatchers.IO) { packets.poll(left, TimeUnit.MILLISECONDS) }
-                ?: return null
-            if (packet === CLOSED) {
-                packets.put(CLOSED)
-                return null
-            }
-            val command = Gaia.parse(packet)?.commandValue ?: continue
-            if (command == response) return packet
-            if (command == error) return null
-        }
-    }
-
-    private suspend fun write(ble: ByteArray) {
-        if (closed) throw IOException("RFCOMM closed")
-        val bytes = GaiaClassic.frame(ble)
-        cancellableSocketCall(socket) {
-            // RFCOMM output is unbuffered; a flush failure after a completed write
-            // would wrongly report the SET as unsent.
-            socket.outputStream.write(bytes)
-        }
-    }
-
     companion object {
-        private const val REPLY_TIMEOUT_MS = 1_500L
-        private const val ERROR_TYPE_BITS = 1 shl 7
-        private val CLOSED = ByteArray(0)
-
         /** Opens an SPP socket on the existing Classic link, or returns null. */
         @SuppressLint("MissingPermission")
-        suspend fun open(device: BluetoothDevice, trace: (String) -> Unit = {}): GaiaRfcommLink? {
+        suspend fun open(device: BluetoothDevice): GaiaRfcommLink? {
             val socket = try {
                 device.createRfcommSocketToServiceRecord(GaiaClassic.SPP_UUID)
             } catch (_: IOException) {
                 return null
+            } catch (_: SecurityException) {
+                return null
             }
             return try {
                 cancellableSocketCall(socket) { socket.connect() }
-                GaiaRfcommLink(socket, trace).also { trace("rfcomm-connected") }
+                GaiaRfcommLink(socket)
             } catch (_: IOException) {
+                try { socket.close() } catch (_: IOException) {}
+                null
+            } catch (_: SecurityException) {
                 try { socket.close() } catch (_: IOException) {}
                 null
             }
@@ -200,7 +175,7 @@ internal class GaiaRfcommLink private constructor(
                         onSuccess = { if (continuation.isActive) continuation.resume(it) },
                         onFailure = { if (continuation.isActive) continuation.resumeWithException(it) },
                     )
-                }, "st2-rfcomm-io")
+                }, "st2-rfcomm-connect")
                 thread.isDaemon = true
                 thread.start()
             }

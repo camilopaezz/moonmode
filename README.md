@@ -1,6 +1,7 @@
 # MoonMode
 
-ANC mode control for SPACE TRAVEL 2 over GAIA V3 BLE.
+ANC mode control for SPACE TRAVEL 2 over GAIA V3. MoonMode talks to the earbuds
+over RFCOMM on their paired Classic Bluetooth link and uses BLE only as a fallback.
 
 [Battery protocol research](docs/battery-protocol.md) records the official app's
 GAIA commands and device validation for battery readings.
@@ -16,28 +17,48 @@ Requires **JDK 17** and the Android SDK with platform 36. Set `JAVA_HOME` to you
 ./gradlew :app:assembleDebug
 ```
 
+## Connection
+
+The app, the widget, and background refresh share one control session for the
+selected earbuds.
+
+When the earbuds are connected for audio, Connect opens GAIA over RFCOMM on their
+paired Classic Bluetooth address. There is no scan or endpoint confirmation, and
+the session is ready in about half a second instead of about 2.4 seconds over BLE.
+The same socket carries mode changes, the 2-second mode polling while the app is
+open, and battery reads. See [RFCOMM transport](docs/rfcomm-transport.md).
+
+BLE is the fallback when the earbuds are not connected for audio or the RFCOMM
+socket cannot open. The first BLE connection scans for the separate control
+endpoint and asks you to confirm it. After that the confirmed address is reused.
+
+The earbuds accept one RFCOMM control connection at a time. While the official
+Moondrop app is open, even in the background, MoonMode's RFCOMM attempt fails within
+about half a second and MoonMode uses BLE instead. The attempt briefly interrupts
+Moondrop, which reconnects by itself. If Moondrop connects while MoonMode is
+connected, MoonMode shows **Connection lost**. Close Moondrop, then reconnect.
+
 ## Home-screen widget
 
-After pairing the earbuds, connect in the app once and confirm the BLE endpoint. Add **MoonMode** from your launcher's widget picker. The widget has Off, ANC, and Transparency buttons and uses the device selected in the app.
+After pairing the earbuds, open the app once so it saves the selected earbuds. Add **MoonMode** from your launcher's widget picker. The widget has Off, ANC, and Transparency buttons and uses the device selected in the app.
 
-When the earbuds are connected for audio and no app BLE session is ready, a tap
-sends the mode over RFCOMM on the existing Classic Bluetooth link. This skips BLE
-connection and service discovery, so a cold tap takes about half a second instead
-of about 2 seconds. If the earbuds are not connected for audio, or the RFCOMM
-socket or write fails, the tap uses the BLE path below. See
-[RFCOMM transport](docs/rfcomm-transport.md).
+A tap uses the app's session when one is ready. Otherwise it connects as described
+above and sends the mode before anything else: over RFCOMM it is written as soon as
+the socket opens, about half a second after the tap. Then the widget shows the mode
+and reads the battery before the short-lived Bluetooth foreground service releases
+the connection. Rapid taps keep the latest pending mode while the current command
+finishes. Each command attempt times out after 30 seconds.
 
-On the BLE path, a tap connects to the saved endpoint, sends the mode command, then stops the short-lived Bluetooth foreground service. Rapid taps keep the latest pending mode while the current command finishes. Each command attempt times out after 30 seconds.
+If the RFCOMM socket drops or a write fails before the mode is sent, the command
+moves to the saved BLE endpoint, so it is never sent twice. Without a saved endpoint,
+the widget asks you to open the app; the widget never scans.
 
-For a cold widget connection, the requested mode is sent as soon as service
+For a cold BLE connection, the requested mode is sent as soon as service
 discovery completes, before notification subscriptions and battery queries.
-Bluetooth connection and service discovery still take time. Commands arriving
-during notification setup run ahead of queued subscriptions and reads while
-preserving earlier mode-command order. An existing ready session uses the same
-serialized write queue. Notification setup and the battery refresh finish before
-the service releases the connection.
+Commands arriving during notification setup run ahead of queued subscriptions and
+reads while preserving earlier mode-command order.
 
-The widget footer shows the selected paired device. The highlighted mode is the last confirmed setting, not a live reading. Tap the title to open the app. If Bluetooth permissions or setup are missing, the mode buttons open the app instead. A failed command leaves a message asking you to open the app; endpoint discovery and confirmation stay in the app.
+The widget footer shows the selected paired device. The highlighted mode is the last confirmed setting, not a live reading. Tap the title to open the app. If Bluetooth permissions are missing or no paired earbuds are selected, the mode buttons open the app instead. A failed command leaves a message asking you to open the app; endpoint discovery and confirmation stay in the app.
 
 Left and right battery percentages appear beside the paired device when known,
 for example `Paired: Space Travel 2 · L 80% · R 70%`. Tap the footer to open the app.
@@ -54,8 +75,8 @@ not yet verified or enabled by MoonMode.
 
 Use the gear button to switch paired earbuds, reset the selected earbuds’ saved BLE
 endpoint, and configure connection, widget refresh, and appearance. Reset disconnects
-the control session and repeats endpoint discovery on the next Connect. It does not
-remove Android Bluetooth pairing.
+the control session and repeats endpoint discovery the next time the BLE fallback is
+needed. It does not remove Android Bluetooth pairing.
 
 Connect when opening the app is off by default. When enabled, MoonMode tries once
 per shared client session after Bluetooth access and a selected device are available.
@@ -125,7 +146,16 @@ Release APKs use a different key from debug APKs, so uninstall a debug build bef
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-minSdk 31. Pair the buds in system Bluetooth settings first, then pick them from the bonded list. The first Connect scans for the separate BLE control endpoint and asks you to confirm its address. Once connected, the confirmed address is saved for that bonded audio device, so reconnecting (even after restarting the app) skips the scan. If the saved BLE address stops working, the app scans again and asks for confirmation. If multiple same-name earbuds are nearby, move away from the others and scan again; the advertised name alone cannot prove which audio device an endpoint belongs to.
+minSdk 31. Pair the buds in system Bluetooth settings first, then pick them from the bonded list. While they are connected for audio, Connect uses RFCOMM and needs no further setup.
+
+Only the BLE fallback scans for the separate control endpoint and asks you to confirm its address. The confirmed address is saved for that bonded audio device, so later BLE connections (even after restarting the app) skip the scan. If the saved BLE address stops working, the app scans again and asks for confirmation. If multiple same-name earbuds are nearby, move away from the others and scan again; the advertised name alone cannot prove which audio device an endpoint belongs to.
+
+To test a debug build on a phone that has a release build, install it beside the release app:
+
+```sh
+./gradlew :app:assembleDebug -Pmoonmode.debugSuffix=.dev
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
 ## License
 

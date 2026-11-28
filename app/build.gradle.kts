@@ -33,6 +33,8 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
+            // -Pmoonmode.debugSuffix=.dev installs beside a release build for device testing.
+            providers.gradleProperty("moonmode.debugSuffix").orNull?.let { applicationIdSuffix = it }
         }
         release {
             isMinifyEnabled = false

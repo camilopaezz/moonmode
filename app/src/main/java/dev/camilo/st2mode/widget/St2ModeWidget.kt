@@ -106,8 +106,8 @@ class St2ModeWidget : AppWidgetProvider() {
 
         /**
          * Valid command target, or null if Bluetooth is off, either permission is
-         * missing, the saved audio address is not bonded, or it has no confirmed
-         * GAIA endpoint. Never reads bonded names. [SecurityException] → null.
+         * missing, or the saved audio address is not bonded. Never reads bonded
+         * names. [SecurityException] → null.
          */
         @SuppressLint("MissingPermission")
         fun targetOrNull(context: Context): St2WidgetTarget? {
@@ -120,14 +120,7 @@ class St2ModeWidget : AppWidgetProvider() {
             } catch (_: SecurityException) {
                 return null
             }
-            val saved = St2SelectionStore(app).loadSelectedAddress()
-            val confirmed = app.getSharedPreferences(
-                St2SelectionStore.CONFIRMED_ENDPOINTS_PREFS,
-                Context.MODE_PRIVATE,
-            )
-            return widgetTargetOrNull(saved, bondedAddresses) { bonded ->
-                confirmed.getString(bonded, null)
-            }
+            return widgetTargetOrNull(St2SelectionStore(app).loadSelectedAddress(), bondedAddresses)
         }
 
         fun commandIntent(context: Context, mode: AncMode): Intent =

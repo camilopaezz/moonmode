@@ -7,18 +7,19 @@ import dev.camilo.st2mode.ble.St2GattClient
  * Process-scoped owner of the single [St2GattClient].
  *
  * Activity, widget command service, and refresh worker share this so they never open
- * competing GATT connections. [acquire] creates the client on first use;
+ * competing control connections. This matters most for RFCOMM: the earbuds serve one
+ * SPP connection at a time, so a second socket would drop the first. [acquire] creates the client on first use;
  * [release] closes the worker only when the last owner drops its ref.
  *
  * Polling is **not** owned here. Only a resumed [MainActivity] may call
  * [St2GattClient.setPollingEnabled]. A widget service must leave polling off.
  *
- * The widget validates permissions, the bonded selection and the confirmed endpoint
- * before starting its foreground service. Missing setup opens [MainActivity] directly
+ * The widget validates permissions and the bonded selection before starting its
+ * foreground service. Missing setup opens [MainActivity] directly
  * through an activity PendingIntent, not a background activity-launch trampoline.
  *
- * The service acquires this client, connects without scan fallback and waits for the
- * individual SET write to finish. Its attempt has a timeout and it releases its ref
+ * The service acquires this client, connects without scan fallback (RFCOMM, then a
+ * confirmed BLE endpoint) and waits for the individual SET write to finish. Its attempt has a timeout and it releases its ref
  * when destroyed. It never changes polling or the activity's selected device.
  * The periodic widget worker uses explicit bounded mode/battery reads without
  * enabling polling and releases its reference when the refresh ends.
@@ -74,7 +75,4 @@ object St2Session {
             client = null
         }
     }
-
-    @Synchronized
-    fun clientOrNull(): St2GattClient? = client
 }
