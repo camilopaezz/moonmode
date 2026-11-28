@@ -44,21 +44,13 @@ class St2SelectionTest {
     }
 
     @Test
-    fun widgetTargetRequiresBondAndConfirmedEndpoint() {
+    fun widgetTargetNeedsOnlyAStillBondedSelection() {
         val bonded = listOf("audio-1", "audio-2")
-        val endpoints = mapOf("audio-1" to "ble-1")
-        assertEquals(
-            St2WidgetTarget("audio-1", "ble-1"),
-            widgetTargetOrNull("audio-1", bonded, endpoints::get),
-        )
-        assertEquals(
-            St2WidgetTarget("audio-1", "ble-1"),
-            widgetTargetOrNull("AUDIO-1", bonded, endpoints::get),
-        )
-        assertNull(widgetTargetOrNull("audio-2", bonded, endpoints::get))
-        assertNull(widgetTargetOrNull("audio-1", bonded) { "" })
-        assertNull(widgetTargetOrNull("audio-9", bonded, endpoints::get))
-        assertNull(widgetTargetOrNull(null, bonded, endpoints::get))
+        // RFCOMM uses the paired address, so no confirmed BLE endpoint is required.
+        assertEquals(St2WidgetTarget("audio-2"), widgetTargetOrNull("audio-2", bonded))
+        assertEquals(St2WidgetTarget("audio-1"), widgetTargetOrNull("AUDIO-1", bonded))
+        assertNull(widgetTargetOrNull("audio-9", bonded))
+        assertNull(widgetTargetOrNull(null, bonded))
     }
 
     @Test

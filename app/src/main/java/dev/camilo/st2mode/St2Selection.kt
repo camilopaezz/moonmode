@@ -9,10 +9,7 @@ import dev.camilo.st2mode.ble.AncMode
  * not a live reading: UI and widgets must not present it as current while GATT is
  * disconnected.
  */
-data class St2WidgetTarget(
-    val bondedAddress: String,
-    val bleEndpointAddress: String,
-)
+data class St2WidgetTarget(val bondedAddress: String)
 
 fun restoreBondedSelection(
     savedAddress: String?,
@@ -38,18 +35,16 @@ fun decodeLastKnownMode(saved: String?): AncMode? {
 }
 
 /**
- * Widget FGS may connect only when a persisted audio address is still bonded
- * and that address has a confirmed BLE endpoint. Otherwise open [MainActivity].
+ * Widget FGS may connect only when a persisted audio address is still bonded.
+ * Otherwise open [MainActivity]. RFCOMM uses that paired address directly; a
+ * confirmed BLE endpoint is only needed when RFCOMM is unavailable, and the
+ * command reports that failure instead of scanning.
  */
 fun widgetTargetOrNull(
     savedBondedAddress: String?,
     bondedAddresses: Collection<String>,
-    confirmedEndpoint: (bondedAddress: String) -> String?,
-): St2WidgetTarget? {
-    val bonded = restoreBondedSelection(savedBondedAddress, bondedAddresses) ?: return null
-    val endpoint = confirmedEndpoint(bonded)?.takeIf { it.isNotBlank() } ?: return null
-    return St2WidgetTarget(bondedAddress = bonded, bleEndpointAddress = endpoint)
-}
+): St2WidgetTarget? =
+    restoreBondedSelection(savedBondedAddress, bondedAddresses)?.let(::St2WidgetTarget)
 
 /** Modes the home-screen widget may send. Wind is not a widget action. */
 fun widgetModes(): List<AncMode> = listOf(AncMode.Off, AncMode.Anc, AncMode.Transparency)

@@ -26,9 +26,17 @@ import androidx.core.content.ContextCompat
 import dev.camilo.st2mode.St2SelectionStore
 import dev.camilo.st2mode.resolveBondedSelection
 import dev.camilo.st2mode.widget.St2ModeWidget
+import dev.camilo.st2mode.widget.isAudioConnected
 import java.util.ArrayDeque
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -160,6 +168,41 @@ internal class ModeWrites {
         queue.clear()
         inFlight = null
     }
+
+    /**
+     * Empties the queue for a transport that failed, returning SETs that never reached
+     * the earbuds so another transport can send them once. The in-flight SET counts
+     * only when its write is known to have failed; a write that may have landed is
+     * never repeated. Reads and anything not returned complete with false.
+     */
+    fun drainUnsentSets(inFlightFailed: Boolean): List<GattOp.WriteCommand> {
+        val unsent = mutableListOf<GattOp.WriteCommand>()
+        val current = inFlight as? GattOp.WriteCommand
+        if (current != null && current.isSet && inFlightFailed && current.completion?.isCancelled != true) {
+            unsent += current
+        } else {
+            current?.completion?.complete(false)
+        }
+        queue.forEach { op ->
+            if (op is GattOp.WriteCommand && op.isSet && op.completion?.isCancelled != true) unsent += op
+            else (op as? GattOp.WriteCommand)?.completion?.complete(false)
+        }
+        queue.clear()
+        inFlight = null
+        return unsent
+    }
+}
+
+enum class Transport { Rfcomm, Ble }
+
+/** What a connection does after RFCOMM is unavailable or fails. */
+internal enum class BleFallback { CachedEndpoint, Scan, NeedsApp }
+
+/** Background callers never scan; a missing endpoint then needs the app. */
+internal fun bleFallback(cachedEndpoint: String?, allowScan: Boolean): BleFallback = when {
+    cachedEndpoint != null -> BleFallback.CachedEndpoint
+    allowScan -> BleFallback.Scan
+    else -> BleFallback.NeedsApp
 }
 
 /** One outstanding read; SET invalidates older reads and waits for the earbuds to settle. */
@@ -263,8 +306,23 @@ data class ClientState(
     val selectedAddress: String? = null,
     val endpoints: List<BleEndpoint> = emptyList(),
     val ready: Boolean = false,
+    /** The control link in use. Meaningful only while [ready]. */
+    val transport: Transport? = null,
 )
 
+/**
+ * The one control session for the selected earbuds, shared by the app, widget
+ * commands and background refresh through [dev.camilo.st2mode.St2Session].
+ *
+ * A connection first tries GAIA over RFCOMM on the earbuds' paired Classic address
+ * while they are connected for audio. That needs no scan or endpoint confirmation
+ * and is ready in about half a second. BLE is the fallback: the confirmed endpoint,
+ * or endpoint discovery when the caller allows it. Command queueing, polling and
+ * battery reads are the same on both transports; only the frame write differs.
+ *
+ * The earbuds serve one SPP connection at a time, so every caller must share this
+ * client's socket rather than open its own.
+ */
 class St2GattClient(private val context: Context) {
     private val confirmedEndpoints =
         context.getSharedPreferences(St2SelectionStore.CONFIRMED_ENDPOINTS_PREFS, Context.MODE_PRIVATE)
@@ -283,6 +341,8 @@ class St2GattClient(private val context: Context) {
     private var cccdRemaining = 0
     private var epoch = 0
     private var closing = false
+    /** GATT teardown timers key on this, not [epoch]: an RFCOMM close must not cancel them. */
+    private var teardown = 0
     private var pendingConnect: BluetoothDevice? = null
     private var scanner: BluetoothLeScanner? = null
     private var scanCallback: ScanCallback? = null
@@ -294,6 +354,10 @@ class St2GattClient(private val context: Context) {
     private var connectingCached = false
     private var allowScanFallback = true
     private val scanDevices = mutableMapOf<String, Pair<BluetoothDevice, String>>()
+
+    private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var rfcomm: GaiaRfcommLink? = null
+    private var rfcommJob: Job? = null
 
     private val writes = ModeWrites()
     private val pendingModes = PendingModeWrites()
@@ -470,14 +534,9 @@ class St2GattClient(private val context: Context) {
         val bondedAddress = address ?: return
         val status = _state.value.status
         if (status != "disconnected" && status != "error") return
-        val cached = cachedEndpoint(bondedAddress) { confirmedEndpoints.getString(it, null) }
-        if (cached == null && !allowScan) {
-            setError("Open the app to confirm the BLE endpoint")
-            return
-        }
         _state.update {
             it.copy(
-                status = if (cached == null) "scanning" else "connecting",
+                status = "connecting",
                 errorMessage = null,
                 currentMode = null,
                 ready = false,
@@ -485,29 +544,129 @@ class St2GattClient(private val context: Context) {
             )
         }
         worker.post {
+            // A failed session can leave its link open; never run two at once.
+            if (gatt != null && !closing) beginDisconnect(preservePendingModes = true)
+            if (rfcomm != null) closeInternal(preservePendingModes = true)
             allowScanFallback = allowScan
-            if (cached == null) {
-                startScan(device.name, bondedAddress)
-            } else {
-                val endpoint = runCatching { adapter.getRemoteDevice(cached) }.getOrNull()
+            val currentAttempt = ++attempt
+            activeBondedAddress = bondedAddress
+            pendingConfirmation = null
+            connectingCached = false
+            connectionStartedMs = SystemClock.elapsedRealtime()
+            logLatency("connect-start")
+            rfcommJob?.cancel()
+            rfcommJob = io.launch {
+                // Without an audio link, a socket connect would page the earbuds for seconds.
+                val link = withTimeoutOrNull(RFCOMM_CONNECT_TIMEOUT_MS) {
+                    if (isAudioConnected(context, bondedAddress)) GaiaRfcommLink.open(device) else null
+                }
+                val posted = worker.post {
+                    if (attempt != currentAttempt) {
+                        link?.close()
+                        return@post
+                    }
+                    if (link != null) {
+                        startRfcommSession(link)
+                    } else {
+                        logLatency("rfcomm-unavailable")
+                        connectBle(device, bondedAddress, allowScan)
+                    }
+                }
+                if (!posted) link?.close()
+            }
+        }
+    }
+
+    /** Runs on the worker within the current attempt, after RFCOMM was unavailable. */
+    @SuppressLint("MissingPermission")
+    private fun connectBle(device: BluetoothDevice, bondedAddress: String, allowScan: Boolean) {
+        val cached = cachedEndpoint(bondedAddress) { confirmedEndpoints.getString(it, null) }
+        // Permission may have been revoked since connect() checked it; scanning then reports the error.
+        val name = runCatching { device.name }.getOrNull()
+        when (bleFallback(cached, allowScan)) {
+            BleFallback.NeedsApp -> setError(NEEDS_APP_MESSAGE)
+            BleFallback.Scan -> startScan(name, bondedAddress)
+            BleFallback.CachedEndpoint -> {
+                val endpoint = runCatching { bluetoothAdapter()?.getRemoteDevice(cached) }.getOrNull()
                 if (endpoint == null) {
                     if (recoverCachedEndpoint(bondedAddress, allowScan) {
                         confirmedEndpoints.edit().remove(it).apply()
                     }) {
-                        hop { _state.update { it.copy(status = "scanning") } }
-                        startScan(device.name, bondedAddress)
+                        startScan(name, bondedAddress)
                     } else {
-                        setError("Open the app to confirm the BLE endpoint")
+                        setError(NEEDS_APP_MESSAGE)
                     }
-                } else {
-                    attempt++
-                    activeBondedAddress = bondedAddress
-                    pendingConfirmation = null
-                    connectingCached = true
-                    connectOnWorker(endpoint)
+                    return
                 }
+                pendingConfirmation = null
+                connectingCached = true
+                connectOnWorker(endpoint)
             }
         }
+    }
+
+    /** Ready as soon as the socket is open: there are no services or subscriptions to set up. */
+    private fun startRfcommSession(link: GaiaRfcommLink) {
+        rfcomm = link
+        link.start(
+            onPacket = { frame -> worker.post { if (rfcomm === link) handleRx(frame) } },
+            onClosed = { worker.post { if (rfcomm === link) onRfcommLost(link, writeFailed = false) } },
+        )
+        logLatency("rfcomm-connected")
+        ready = true
+        hopSession {
+            _state.update {
+                it.copy(status = "connected", errorMessage = null, ready = true, transport = Transport.Rfcomm)
+            }
+        }
+        // A widget command registered before the socket opened goes first.
+        pendingModes.take(activeBondedAddress, attempt).forEach(writes::enqueue)
+        if (!writes.hasSet()) {
+            poll.onGetEnqueued()
+            writes.enqueue(GattOp.WriteCommand(Gaia.getCurrentMode(), sending = false))
+        }
+        requestBattery()
+        startPollLoop()
+        pump()
+    }
+
+    /**
+     * The socket closed or a write failed: the earbuds left audio, or another app
+     * such as the official Moondrop app took the single SPP channel. SETs that never
+     * reached the earbuds move to the saved BLE endpoint when there is one, so a
+     * widget command still lands without being sent twice.
+     */
+    private fun onRfcommLost(link: GaiaRfcommLink, writeFailed: Boolean) {
+        if (rfcomm !== link) return
+        logLatency("rfcomm-lost writeFailed=$writeFailed")
+        val unsent = writes.drainUnsentSets(inFlightFailed = writeFailed)
+        val bondedAddress = activeBondedAddress
+        val device = bondedAddress?.let { devicesByAddress[it] }
+        closeInternal()
+        val cached = bondedAddress?.let { address -> cachedEndpoint(address) { confirmedEndpoints.getString(it, null) } }
+        if (unsent.isNotEmpty() && device != null && bondedAddress != null && cached != null) {
+            unsent.forEach { pendingModes.add(bondedAddress, attempt, it) }
+            // Recovery stays on the confirmed endpoint, even if this attempt allowed a scan.
+            allowScanFallback = false
+            hopSession {
+                _state.update { it.copy(status = "connecting", errorMessage = null, ready = false, currentMode = null) }
+            }
+            connectBle(device, bondedAddress, allowScan = false)
+            return
+        }
+        unsent.forEach { it.completion?.complete(false) }
+        hopSession {
+            _state.update {
+                it.copy(status = "error", errorMessage = CONNECTION_LOST_MESSAGE, ready = false, currentMode = null)
+            }
+        }
+    }
+
+    private fun closeRfcomm() {
+        val link = rfcomm ?: return
+        // Clear first so the reader's close callback is recognised as stale.
+        rfcomm = null
+        link.close()
     }
 
     fun confirmEndpoint(address: String) {
@@ -612,11 +771,6 @@ class St2GattClient(private val context: Context) {
         }
     }
 
-    /** A mode confirmed over another transport; the caller has already saved it. */
-    fun recordConfirmedMode(mode: AncMode) {
-        hop { _state.update { it.copy(lastKnownMode = mode) } }
-    }
-
     fun setMode(mode: AncMode) = enqueueMode(mode, null)
 
     /** Wait for this command's write callback, not a cached mode or another writer's result. */
@@ -660,6 +814,7 @@ class St2GattClient(private val context: Context) {
         worker.post {
             cancelAttempt()
             closeNow()
+            io.cancel()
             workerThread.quitSafely()
         }
     }
@@ -817,6 +972,9 @@ class St2GattClient(private val context: Context) {
     @SuppressLint("MissingPermission")
     private fun closeInternal(preservePendingModes: Boolean = false) {
         epoch++
+        rfcommJob?.cancel()
+        rfcommJob = null
+        closeRfcomm()
         if (!preservePendingModes) pendingModes.clear()
         earlySetCompleted = false
         finishModeReads(false)
@@ -833,17 +991,15 @@ class St2GattClient(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     private fun beginDisconnect(preservePendingModes: Boolean = false) {
-        if (closing) {
-            if (!preservePendingModes) pendingModes.clear()
-            return
-        }
+        // While GATT is still closing, an RFCOMM session can be open; close it too.
         closeInternal(preservePendingModes)
+        if (closing) return
         val g = gatt ?: return
         closing = true
         runCatching { g.disconnect() }
-        val captured = epoch
+        val captured = teardown
         worker.postDelayed({
-            if (epoch != captured) return@postDelayed
+            if (teardown != captured) return@postDelayed
             if (gatt === g) finishClose(g)
         }, DISCONNECT_TIMEOUT_MS)
     }
@@ -858,9 +1014,9 @@ class St2GattClient(private val context: Context) {
 
     private fun scheduleSettle() {
         closing = true
-        val captured = epoch
+        val captured = teardown
         worker.postDelayed({
-            if (epoch != captured) return@postDelayed
+            if (teardown != captured) return@postDelayed
             closing = false
             val device = pendingConnect
             pendingConnect = null
@@ -871,6 +1027,7 @@ class St2GattClient(private val context: Context) {
     @SuppressLint("MissingPermission")
     private fun closeNow() {
         closeInternal()
+        teardown++
         closing = false
         gatt?.let { g ->
             runCatching { g.disconnect() }
@@ -942,6 +1099,10 @@ class St2GattClient(private val context: Context) {
     @SuppressLint("MissingPermission")
     private fun pump() {
         if (writeGapPending || writes.inFlight != null) return
+        rfcomm?.let {
+            pumpRfcomm(it)
+            return
+        }
         val g = gatt ?: return
         val op = writes.startNext() ?: return
         val ok = when (op) {
@@ -962,6 +1123,29 @@ class St2GattClient(private val context: Context) {
                 if (!scanAfterCachedFailure()) setError("connect failed")
             }
         }
+    }
+
+    private fun pumpRfcomm(link: GaiaRfcommLink) {
+        val op = writes.startNext() ?: return
+        if (op !is GattOp.WriteCommand) {
+            // Subscriptions are a GATT concept; nothing to write on RFCOMM.
+            writes.finish(success = true)
+            onOpFinished()
+            return
+        }
+        if (op.sending) markSending()
+        val captured = epoch
+        val stillInFlight = { epoch == captured && rfcomm === link && writes.inFlight === op }
+        link.write(op.bytes) { ok ->
+            worker.post { if (stillInFlight()) { if (ok) onCommandWritten(true) else onRfcommLost(link, writeFailed = true) } }
+        }
+        // A blocked write ends the link. Part of it may have gone out, so it is not resent.
+        worker.postDelayed({ if (stillInFlight()) onRfcommLost(link, writeFailed = false) }, RFCOMM_WRITE_TIMEOUT_MS)
+    }
+
+    private fun markSending() {
+        logLatency("mode-write-start")
+        hopSession { _state.update { it.copy(status = "sending", errorMessage = null) } }
     }
 
     private fun onOpFinished() {
@@ -993,10 +1177,7 @@ class St2GattClient(private val context: Context) {
     @SuppressLint("MissingPermission")
     private fun writeCommand(g: BluetoothGatt, bytes: ByteArray, sending: Boolean): Boolean {
         val ch = commandChar ?: return false
-        if (sending) {
-            logLatency("mode-write-start")
-            hopSession { _state.update { it.copy(status = "sending", errorMessage = null) } }
-        }
+        if (sending) markSending()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             g.writeCharacteristic(ch, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) ==
                 BluetoothStatusCodes.SUCCESS
@@ -1045,6 +1226,56 @@ class St2GattClient(private val context: Context) {
             }
             if (modeChanged) St2ModeWidget.updateAll(context, preserveStatus = true)
         }
+    }
+
+    /** A command write finished on either transport. */
+    private fun onCommandWritten(success: Boolean) {
+        val inFlightOp = writes.inFlight as? GattOp.WriteCommand ?: return
+        val isGet = inFlightOp.isGet
+        // Persist before waking a widget waiter that renders the cached mode.
+        if (success && inFlightOp.mode != null) {
+            selectionStore.saveLastKnownMode(inFlightOp.mode)
+        }
+        val completedMode = writes.finish(success)
+        if (inFlightOp.kind == CommandKind.BATTERY_GET) {
+            if (!success) finishBatteryRequest(false)
+            onOpFinished()
+            return
+        }
+        if (completedMode != null) {
+            if (!ready) earlySetCompleted = true
+            logLatency("mode-write-complete")
+            poll.onSetCompleted(completedMode)
+            startPollLoop()
+        }
+        if (isGet) {
+            if (!success) {
+                worker.removeCallbacks(getTimeoutRunnable)
+                poll.onGetSettled()
+                finishModeReads(false)
+            } else if (poll.shouldArmGetTimeout()) {
+                scheduleGetTimeout()
+            }
+            onOpFinished()
+            return
+        }
+        if (!success) {
+            if (!ready) beginDisconnect()
+            setError("connect failed")
+            return
+        }
+        hopSession {
+            _state.update { current ->
+                current.copy(
+                    currentMode = completedMode ?: current.currentMode,
+                    lastKnownMode = completedMode ?: current.lastKnownMode,
+                    status = if (current.status == "sending") {
+                        if (ready) "connected" else "connecting"
+                    } else current.status,
+                )
+            }
+        }
+        onOpFinished()
     }
 
     private val callback = object : BluetoothGattCallback() {
@@ -1158,7 +1389,7 @@ class St2GattClient(private val context: Context) {
                         connectingCached = false
                         hopSession {
                             _state.update {
-                                it.copy(status = "connected", errorMessage = null, ready = true)
+                                it.copy(status = "connected", errorMessage = null, ready = true, transport = Transport.Ble)
                             }
                         }
                         if (!earlySetCompleted && !writes.hasSet()) {
@@ -1182,53 +1413,7 @@ class St2GattClient(private val context: Context) {
             worker.post {
                 if (!isCurrentSession(g) || characteristic.uuid != Gaia.CHAR_COMMAND ||
                     writes.inFlight !is GattOp.WriteCommand) return@post
-                val inFlightOp = writes.inFlight as? GattOp.WriteCommand
-                val isGet = inFlightOp?.isGet == true
-                val success = status == BluetoothGatt.GATT_SUCCESS
-                // Persist before waking a widget waiter that renders the cached mode.
-                if (success && inFlightOp?.mode != null) {
-                    selectionStore.saveLastKnownMode(inFlightOp.mode)
-                }
-                val completedMode = writes.finish(success)
-                if (inFlightOp?.kind == CommandKind.BATTERY_GET) {
-                    if (!success) finishBatteryRequest(false)
-                    onOpFinished()
-                    return@post
-                }
-                if (completedMode != null) {
-                    if (!ready) earlySetCompleted = true
-                    logLatency("mode-write-complete")
-                    poll.onSetCompleted(completedMode)
-                    startPollLoop()
-                }
-                if (isGet) {
-                    if (!success) {
-                        worker.removeCallbacks(getTimeoutRunnable)
-                        poll.onGetSettled()
-                        finishModeReads(false)
-                    } else if (poll.shouldArmGetTimeout()) {
-                        scheduleGetTimeout()
-                    }
-                    onOpFinished()
-                    return@post
-                }
-                if (!success) {
-                    if (!ready) beginDisconnect()
-                    setError("connect failed")
-                    return@post
-                }
-                hopSession {
-                    _state.update { current ->
-                        current.copy(
-                            currentMode = completedMode ?: current.currentMode,
-                            lastKnownMode = completedMode ?: current.lastKnownMode,
-                            status = if (current.status == "sending") {
-                                if (ready) "connected" else "connecting"
-                            } else current.status,
-                        )
-                    }
-                }
-                onOpFinished()
+                onCommandWritten(status == BluetoothGatt.GATT_SUCCESS)
             }
         }
 
@@ -1262,5 +1447,9 @@ class St2GattClient(private val context: Context) {
         private const val POLL_INTERVAL_MS = 2000L
         private const val GET_RESPONSE_TIMEOUT_MS = 1500L
         private const val BATTERY_RESPONSE_TIMEOUT_MS = 3_000L
+        private const val RFCOMM_CONNECT_TIMEOUT_MS = 6_000L
+        private const val RFCOMM_WRITE_TIMEOUT_MS = 3_000L
+        const val NEEDS_APP_MESSAGE = "Open the app to confirm the BLE endpoint"
+        const val CONNECTION_LOST_MESSAGE = "Connection lost"
     }
 }

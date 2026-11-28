@@ -87,6 +87,7 @@ import androidx.compose.ui.unit.sp
 import dev.camilo.st2mode.R
 import dev.camilo.st2mode.ble.AncMode
 import dev.camilo.st2mode.ble.ClientState
+import dev.camilo.st2mode.ble.St2GattClient
 import dev.camilo.st2mode.ui.common.ContentCardGap
 import dev.camilo.st2mode.ui.common.DisabledContentAlpha
 import dev.camilo.st2mode.ui.common.FloatingHeaderGap
@@ -398,16 +399,19 @@ private fun ConnectionErrorCard(state: ClientState, onRetry: () -> Unit, modifie
     val needsPermission = state.errorMessage == "permission denied"
     val needsPairing = !needsPermission && state.bonded.isEmpty()
     val notFound = state.errorMessage == "BLE control device not found"
+    val lost = state.errorMessage == St2GattClient.CONNECTION_LOST_MESSAGE
     val title = stringResource(when {
         needsPermission -> R.string.bluetooth_access_title
         needsPairing -> R.string.pair_earbuds_title
         notFound -> R.string.earbuds_not_found_title
+        lost -> R.string.connection_lost
         else -> R.string.connection_error
     })
     val message = stringResource(when {
         needsPermission -> R.string.bluetooth_access_help
         needsPairing -> R.string.pair_earbuds_help
         notFound -> R.string.earbuds_not_found_help
+        lost -> R.string.connection_lost_help
         else -> R.string.connection_error_help
     })
     val colors = MaterialTheme.colorScheme
@@ -441,6 +445,7 @@ private fun ConnectionErrorCard(state: ClientState, onRetry: () -> Unit, modifie
 
 @Composable
 private fun connectionStatus(state: ClientState): String = stringResource(when {
+    state.status == "error" && state.errorMessage == St2GattClient.CONNECTION_LOST_MESSAGE -> R.string.connection_lost
     state.status == "error" -> R.string.connection_error
     state.status == "sending" && state.ready -> R.string.changing_mode
     state.ready -> R.string.connected

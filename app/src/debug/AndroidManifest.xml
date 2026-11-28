@@ -13,5 +13,18 @@
                 <data android:scheme="moonmode-sample" />
             </intent-filter>
         </activity>
+        <!-- Debug-only RFCOMM session probe; reads and registrations only, never SET. -->
+        <activity
+            android:name=".RfcommProbeActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity
+            android:name=".WidgetCommandProbeActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <service
+            android:name=".RfcommProbeService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>

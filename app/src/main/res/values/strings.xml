@@ -21,6 +21,8 @@
     <string name="finding_earbuds">Finding earbuds</string>
     <string name="changing_mode">Changing mode…</string>
     <string name="connection_error">Could not connect</string>
+    <string name="connection_lost">Connection lost</string>
+    <string name="connection_lost_help">Your earbuds disconnected, or another app such as Moondrop took the control connection. Close that app, then reconnect.</string>
     <string name="endpoint_needed">Choose an endpoint</string>
     <string name="choose_endpoint">Choose the BLE endpoint for your earbuds</string>
     <string name="permission_help">Tap Connect to allow Bluetooth. If access is blocked, allow Nearby devices in Android app settings.</string>
@@ -36,7 +38,7 @@
     <string name="manage_earbuds">Manage earbuds</string>
     <string name="settings_no_earbuds">No paired earbuds found. Pair your earbuds in Android Bluetooth settings, then return here.</string>
     <string name="reset_connection">Reset connection setup</string>
-    <string name="reset_connection_help">Forget the selected earbuds’ saved control connection. Next time you connect, you’ll choose the BLE endpoint again.</string>
+    <string name="reset_connection_help">Forget the selected earbuds’ saved BLE endpoint. MoonMode uses it only when the earbuds aren’t connected for audio. Next time that happens, you’ll choose the endpoint again.</string>
     <string name="reset_connection_confirmation">Disconnect and forget the saved BLE endpoint for these earbuds? Your Android Bluetooth pairing will stay saved.</string>
     <string name="reset">Reset</string>
     <string name="connection_settings">Connection</string>
@@ -57,14 +59,14 @@
     <string name="open_android_settings">Open Android app settings</string>
     <string name="open_bluetooth_settings">Open Bluetooth settings</string>
     <string name="widget_setup">Add the home-screen widget</string>
-    <string name="widget_setup_help">1. Pair your earbuds in Android Bluetooth settings.\n2. Select them in MoonMode, tap Connect, and confirm the BLE endpoint.\n3. Touch and hold an empty area of your home screen, open Widgets, and add MoonMode.\n\nThe highlighted mode is the last confirmed reading. With background refresh off, it updates when you use the app or tap a widget mode.</string>
+    <string name="widget_setup_help">1. Pair your earbuds in Android Bluetooth settings.\n2. Select them in MoonMode.\n3. Touch and hold an empty area of your home screen, open Widgets, and add MoonMode.\n\nThe highlighted mode is the last confirmed reading. With background refresh off, it updates when you use the app or tap a widget mode.</string>
     <string name="app_version">MoonMode %1$s</string>
     <string name="licenses">Open-source licenses</string>
     <string name="close">Close</string>
     <string name="theme">Theme</string>
     <string name="no_paired_earbuds">No paired earbuds</string>
     <string name="pair_in_bluetooth">Pair earbuds in Bluetooth settings</string>
-    <string name="reset_connection_summary">Choose the BLE endpoint again on next connection</string>
+    <string name="reset_connection_summary">Choose the BLE endpoint again when it’s needed</string>
     <string name="connect_on_open_summary">Try once when MoonMode opens</string>
     <string name="widget_refresh_summary">Update mode about every 15 minutes when connected</string>
     <string name="wallpaper_colors_summary">Turn off to use MoonMode’s purple palette</string>
